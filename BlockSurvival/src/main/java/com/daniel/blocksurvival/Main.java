@@ -1,21 +1,33 @@
 package com.daniel.blocksurvival;
 
-import java.nio.ByteBuffer;
+import com.daniel.blocksurvival.world.BlockType;
+import com.daniel.blocksurvival.world.World;
+import com.daniel.blocksurvival.graphics.Mesh;
+import com.daniel.blocksurvival.graphics.ChunkMeshBuilder;
+import com.daniel.blocksurvival.world.ChunkManager;
+import com.daniel.blocksurvival.world.TerrainGenerator;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import java.util.ArrayList;
+import java.util.List;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import com.daniel.blocksurvival.world.Chunk;
 
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-import static org.lwjgl.stb.STBImage.*;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL15.*;
 import static org.lwjgl.opengl.GL20.*;
-import static org.lwjgl.opengl.GL30.*;
 import static org.lwjgl.system.MemoryStack.stackPush;
+
+import com.daniel.blocksurvival.graphics.Texture;
 
 import org.lwjgl.system.MemoryStack;
 
@@ -23,31 +35,46 @@ public class Main {
 
     private long window;
 
-    private int vaoId;
-    private int vboId;
-    private int eboId;
-    private int textureId;
+
+    private final ChunkMeshBuilder chunkMeshBuilder =
+            new ChunkMeshBuilder();
+
+    private final TerrainGenerator terrainGenerator =
+            new TerrainGenerator(12345);
+
+    private boolean removeBlockRequested = false;
+
+    private boolean breakBlockRequested = false;
+
+    private boolean placeBlockRequested = false;
+
+    private Texture atlasTexture;
     private int shaderProgramId;
     private int mvpUniformLocation;
 
-    private int atlasOffsetUniformLocation;
 
     private int framebufferWidth = 1280;
     private int framebufferHeight = 720;
 
-    private final Block[] blocks = createBlocks();
+    private final World world = new World();
 
-    private final Vector3f cameraPosition =
-            new Vector3f(0.0f, 1.5f, 5.0f);
+    private final Map<Chunk, Mesh> chunkMeshes =
+            new HashMap<>();
 
-    private final Vector3f cameraFront =
-            new Vector3f(0.0f, 0.0f, -1.0f);
+    private static final int RENDER_DISTANCE = 2;
 
-    private final Vector3f cameraUp =
-            new Vector3f(0.0f, 1.0f, 0.0f);
+    private int lastPlayerChunkX =
+            Integer.MIN_VALUE;
 
-    private float yaw = -90.0f;
-    private float pitch = 0.0f;
+    private int lastPlayerChunkZ =
+            Integer.MIN_VALUE;
+
+
+
+    private final Camera camera =
+            new Camera(
+                    new Vector3f(0.0f, 12f, 5.0f)
+            );
 
     private double lastMouseX = 640.0;
     private double lastMouseY = 360.0;
@@ -102,63 +129,77 @@ public class Main {
             throw new RuntimeException("Failed to create the game window.");
         }
 
-        glfwSetKeyCallback(window, (windowHandle, key, scanCode, action, mods) -> {
-            if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-                glfwSetWindowShouldClose(windowHandle, true);
-            }
-        });
 
-        glfwSetCursorPosCallback(window, (windowHandle, mouseX, mouseY) -> {
-            if (firstMouseMovement) {
-                lastMouseX = mouseX;
-                lastMouseY = mouseY;
-                firstMouseMovement = false;
-            }
+        glfwSetKeyCallback(
+                window,
+                (windowHandle, key, scanCode, action, mods) -> {
+                    if (
+                            key == GLFW_KEY_ESCAPE &&
+                                    action == GLFW_PRESS
+                    ) {
+                        glfwSetWindowShouldClose(
+                                windowHandle,
+                                true
+                        );
+                    }
 
-            float xOffset = (float) (mouseX - lastMouseX);
-            float yOffset = (float) (lastMouseY - mouseY);
+                    if (
+                            key == GLFW_KEY_R &&
+                                    action == GLFW_PRESS
+                    ) {
+                        removeBlockRequested = true;
+                    }
+                }
+        );
 
-            lastMouseX = mouseX;
-            lastMouseY = mouseY;
+        glfwSetMouseButtonCallback(
+                window,
+                (windowHandle, button, action, mods) -> {
+                    if (
+                            button == GLFW_MOUSE_BUTTON_LEFT &&
+                                    action == GLFW_PRESS
+                    ) {
+                        breakBlockRequested = true;
+                    }
 
-            float sensitivity = 0.1f;
+                    if (
+                            button == GLFW_MOUSE_BUTTON_RIGHT &&
+                                    action == GLFW_PRESS
+                    ) {
+                        placeBlockRequested = true;
+                    }
+                }
+        );
 
-            xOffset *= sensitivity;
-            yOffset *= sensitivity;
+        glfwSetCursorPosCallback(
+                window,
+                (windowHandle, mouseX, mouseY) -> {
+                    if (firstMouseMovement) {
+                        lastMouseX = mouseX;
+                        lastMouseY = mouseY;
+                        firstMouseMovement = false;
+                    }
 
-            yaw += xOffset;
-            pitch += yOffset;
+                    float horizontalOffset =
+                            (float) (mouseX - lastMouseX);
 
-            /*
-             * Prevent the camera from flipping upside down.
-             */
-            if (pitch > 89.0f) {
-                pitch = 89.0f;
-            }
+                    float verticalOffset =
+                            (float) (lastMouseY - mouseY);
 
-            if (pitch < -89.0f) {
-                pitch = -89.0f;
-            }
+                    lastMouseX = mouseX;
+                    lastMouseY = mouseY;
 
-            Vector3f newDirection = new Vector3f();
+                    float sensitivity = 0.1f;
 
-            newDirection.x =
-                    (float) (
-                            Math.cos(Math.toRadians(yaw)) *
-                                    Math.cos(Math.toRadians(pitch))
+                    horizontalOffset *= sensitivity;
+                    verticalOffset *= sensitivity;
+
+                    camera.rotate(
+                            horizontalOffset,
+                            verticalOffset
                     );
-
-            newDirection.y =
-                    (float) Math.sin(Math.toRadians(pitch));
-
-            newDirection.z =
-                    (float) (
-                            Math.sin(Math.toRadians(yaw)) *
-                                    Math.cos(Math.toRadians(pitch))
-                    );
-
-            cameraFront.set(newDirection).normalize();
-        });
+                }
+        );
 
         glfwMakeContextCurrent(window);
 
@@ -216,205 +257,337 @@ public class Main {
                 1.0f
         );
 
-        createCube();
+        updateLoadedChunks();
+
         createShaders();
 
-        textureId = loadTexture(
+        atlasTexture = new Texture(
                 "src/main/resources/textures/block_atlas.png"
         );
+
+
     }
 
-    private void createCube() {
+
+    private void updateLoadedChunks() {
         /*
-         * Each vertex contains:
-         *
-         * x, y, z position
-         * u, v texture coordinate
+         * Convert the camera's world position into a world block.
          */
-        float[] vertices = {
-                // FRONT FACE
-                // Position                 // UV
-                -0.5f,  0.5f,  0.5f,        0.0f, 1.0f,
-                -0.5f, -0.5f,  0.5f,        0.0f, 0.0f,
-                0.5f, -0.5f,  0.5f,        1.0f, 0.0f,
-                0.5f,  0.5f,  0.5f,        1.0f, 1.0f,
-
-                // BACK FACE
-                0.5f,  0.5f, -0.5f,        0.0f, 1.0f,
-                0.5f, -0.5f, -0.5f,        0.0f, 0.0f,
-                -0.5f, -0.5f, -0.5f,        1.0f, 0.0f,
-                -0.5f,  0.5f, -0.5f,        1.0f, 1.0f,
-
-                // LEFT FACE
-                -0.5f,  0.5f, -0.5f,        0.0f, 1.0f,
-                -0.5f, -0.5f, -0.5f,        0.0f, 0.0f,
-                -0.5f, -0.5f,  0.5f,        1.0f, 0.0f,
-                -0.5f,  0.5f,  0.5f,        1.0f, 1.0f,
-
-                // RIGHT FACE
-                0.5f,  0.5f,  0.5f,        0.0f, 1.0f,
-                0.5f, -0.5f,  0.5f,        0.0f, 0.0f,
-                0.5f, -0.5f, -0.5f,        1.0f, 0.0f,
-                0.5f,  0.5f, -0.5f,        1.0f, 1.0f,
-
-                // TOP FACE
-                -0.5f,  0.5f, -0.5f,        0.0f, 1.0f,
-                -0.5f,  0.5f,  0.5f,        0.0f, 0.0f,
-                0.5f,  0.5f,  0.5f,        1.0f, 0.0f,
-                0.5f,  0.5f, -0.5f,        1.0f, 1.0f,
-
-                // BOTTOM FACE
-                -0.5f, -0.5f,  0.5f,        0.0f, 1.0f,
-                -0.5f, -0.5f, -0.5f,        0.0f, 0.0f,
-                0.5f, -0.5f, -0.5f,        1.0f, 0.0f,
-                0.5f, -0.5f,  0.5f,        1.0f, 1.0f
-        };
-
-        int[] indices = {
-                0,  1,  2,   2,  3,  0,
-                4,  5,  6,   6,  7,  4,
-                8,  9, 10,  10, 11,  8,
-                12, 13, 14,  14, 15, 12,
-                16, 17, 18,  18, 19, 16,
-                20, 21, 22,  22, 23, 20
-        };
-
-        vaoId = glGenVertexArrays();
-        glBindVertexArray(vaoId);
-
-        vboId = glGenBuffers();
-        glBindBuffer(GL_ARRAY_BUFFER, vboId);
-        glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
-
-        eboId = glGenBuffers();
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eboId);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW);
-
-        /*
-         * Each vertex contains five floats:
-         *
-         * x, y, z, u, v
-         */
-        int numbersPerVertex = 5;
-        int stride = numbersPerVertex * Float.BYTES;
-
-        /*
-         * Attribute 0: XYZ position
-         */
-        glVertexAttribPointer(
-                0,
-                3,
-                GL_FLOAT,
-                false,
-                stride,
-                0
-        );
-
-        glEnableVertexAttribArray(0);
-
-        /*
-         * Attribute 1: UV texture coordinates
-         */
-        glVertexAttribPointer(
-                1,
-                2,
-                GL_FLOAT,
-                false,
-                stride,
-                3L * Float.BYTES
-        );
-
-        glEnableVertexAttribArray(1);
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
-    }
-
-    private int loadTexture(String filePath) {
-        /*
-         * OpenGL considers the bottom-left the image origin.
-         * Most image formats consider the top-left the origin.
-         */
-        stbi_set_flip_vertically_on_load(true);
-
-        try (MemoryStack stack = stackPush()) {
-            IntBuffer width = stack.mallocInt(1);
-            IntBuffer height = stack.mallocInt(1);
-            IntBuffer channels = stack.mallocInt(1);
-
-            ByteBuffer imageData = stbi_load(
-                    filePath,
-                    width,
-                    height,
-                    channels,
-                    4
-            );
-
-            if (imageData == null) {
-                throw new RuntimeException(
-                        "Could not load texture: "
-                                + filePath
-                                + "\nReason: "
-                                + stbi_failure_reason()
+        int playerBlockX =
+                (int) Math.floor(
+                        camera.getPosition().x
                 );
+
+        int playerBlockZ =
+                (int) Math.floor(
+                        camera.getPosition().z
+                );
+
+        /*
+         * Convert the world block into a chunk coordinate.
+         */
+        int playerChunkX =
+                Math.floorDiv(
+                        playerBlockX,
+                        Chunk.SIZE
+                );
+
+        int playerChunkZ =
+                Math.floorDiv(
+                        playerBlockZ,
+                        Chunk.SIZE
+                );
+
+        /*
+         * Do nothing unless the player crossed into another chunk.
+         */
+        if (
+                playerChunkX == lastPlayerChunkX &&
+                        playerChunkZ == lastPlayerChunkZ
+        ) {
+            return;
+        }
+
+        lastPlayerChunkX = playerChunkX;
+        lastPlayerChunkZ = playerChunkZ;
+
+        System.out.println(
+                "Player entered chunk: " +
+                        playerChunkX + ", " +
+                        playerChunkZ
+        );
+
+        /*
+         * Generate every missing chunk inside render distance.
+         */
+        for (
+                int chunkX =
+                playerChunkX - RENDER_DISTANCE;
+                chunkX <=
+                        playerChunkX + RENDER_DISTANCE;
+                chunkX++
+        ) {
+            for (
+                    int chunkZ =
+                    playerChunkZ - RENDER_DISTANCE;
+                    chunkZ <=
+                            playerChunkZ + RENDER_DISTANCE;
+                    chunkZ++
+            ) {
+                Chunk chunk =
+                        world.getChunk(
+                                chunkX,
+                                0,
+                                chunkZ
+                        );
+
+                if (chunk == null) {
+                    chunk =
+                            world.getOrCreateChunk(
+                                    chunkX,
+                                    0,
+                                    chunkZ
+                            );
+
+                    terrainGenerator.generateChunk(
+                            world,
+                            chunk
+                    );
+
+                    System.out.println(
+                            "Generated chunk: " +
+                                    chunkX + ", " +
+                                    chunkZ
+                    );
+                }
+            }
+        }
+
+        /*
+         * Find chunks that are now outside render distance.
+         *
+         * We collect them first because removing chunks while
+         * iterating over world.getChunks() would cause trouble.
+         */
+        List<Chunk> chunksToUnload =
+                new ArrayList<>();
+
+        for (Chunk chunk : world.getChunks()) {
+            int distanceX =
+                    Math.abs(
+                            chunk.getChunkX() -
+                                    playerChunkX
+                    );
+
+            int distanceZ =
+                    Math.abs(
+                            chunk.getChunkZ() -
+                                    playerChunkZ
+                    );
+
+            if (
+                    distanceX > RENDER_DISTANCE ||
+                            distanceZ > RENDER_DISTANCE
+            ) {
+                chunksToUnload.add(chunk);
+            }
+        }
+
+        /*
+         * Destroy the GPU mesh and remove the chunk data.
+         */
+        for (Chunk chunk : chunksToUnload) {
+            Mesh mesh =
+                    chunkMeshes.remove(chunk);
+
+            if (mesh != null) {
+                mesh.destroy();
             }
 
-            int newTextureId = glGenTextures();
-
-            glBindTexture(GL_TEXTURE_2D, newTextureId);
-
-            /*
-             * Use nearest-neighbor filtering so pixel art
-             * remains crisp rather than becoming blurry.
-             */
-            glTexParameteri(
-                    GL_TEXTURE_2D,
-                    GL_TEXTURE_MIN_FILTER,
-                    GL_NEAREST
+            world.removeChunk(
+                    chunk.getChunkX(),
+                    chunk.getChunkY(),
+                    chunk.getChunkZ()
             );
 
-            glTexParameteri(
-                    GL_TEXTURE_2D,
-                    GL_TEXTURE_MAG_FILTER,
-                    GL_NEAREST
+            System.out.println(
+                    "Unloaded chunk: " +
+                            chunk.getChunkX() + ", " +
+                            chunk.getChunkZ()
             );
+        }
 
-            /*
-             * Repeat the image if UV values leave the 0–1 range.
-             */
-            glTexParameteri(
-                    GL_TEXTURE_2D,
-                    GL_TEXTURE_WRAP_S,
-                    GL_REPEAT
+        /*
+         * Rebuild the active area.
+         *
+         * This ensures faces along newly loaded or unloaded
+         * chunk borders are updated correctly.
+         */
+        rebuildAllChunkMeshes();
+    }
+
+
+    private void rebuildAllChunkMeshes() {
+        /*
+         * Destroy every old GPU mesh.
+         */
+        for (Mesh mesh : chunkMeshes.values()) {
+            mesh.destroy();
+        }
+
+        chunkMeshes.clear();
+
+        /*
+         * Build one mesh for every loaded chunk.
+         */
+        for (Chunk chunk : world.getChunks()) {
+            Mesh mesh =
+                    chunkMeshBuilder.build(
+                            world,
+                            chunk
+                    );
+
+            chunkMeshes.put(chunk, mesh);
+        }
+
+        System.out.println(
+                "Loaded chunks: " +
+                        world.getChunkCount()
+        );
+    }
+
+    private void rebuildChunksAroundBlock(
+            int worldX,
+            int worldY,
+            int worldZ
+    ) {
+        int chunkX =
+                Math.floorDiv(worldX, Chunk.SIZE);
+
+        int chunkY =
+                Math.floorDiv(worldY, Chunk.SIZE);
+
+        int chunkZ =
+                Math.floorDiv(worldZ, Chunk.SIZE);
+
+        int localX =
+                Math.floorMod(worldX, Chunk.SIZE);
+
+        int localY =
+                Math.floorMod(worldY, Chunk.SIZE);
+
+        int localZ =
+                Math.floorMod(worldZ, Chunk.SIZE);
+
+        /*
+         * Always rebuild the chunk containing the edited block.
+         */
+        rebuildChunk(
+                chunkX,
+                chunkY,
+                chunkZ
+        );
+
+        /*
+         * Rebuild a neighboring chunk only when the changed
+         * block touches that side of the current chunk.
+         */
+
+        if (localX == 0) {
+            rebuildChunk(
+                    chunkX - 1,
+                    chunkY,
+                    chunkZ
             );
+        }
 
-            glTexParameteri(
-                    GL_TEXTURE_2D,
-                    GL_TEXTURE_WRAP_T,
-                    GL_REPEAT
+        if (localX == Chunk.SIZE - 1) {
+            rebuildChunk(
+                    chunkX + 1,
+                    chunkY,
+                    chunkZ
             );
+        }
 
-            glTexImage2D(
-                    GL_TEXTURE_2D,
-                    0,
-                    GL_RGBA8,
-                    width.get(0),
-                    height.get(0),
-                    0,
-                    GL_RGBA,
-                    GL_UNSIGNED_BYTE,
-                    imageData
+        if (localY == 0) {
+            rebuildChunk(
+                    chunkX,
+                    chunkY - 1,
+                    chunkZ
             );
+        }
 
-            glGenerateMipmap(GL_TEXTURE_2D);
+        if (localY == Chunk.SIZE - 1) {
+            rebuildChunk(
+                    chunkX,
+                    chunkY + 1,
+                    chunkZ
+            );
+        }
 
-            stbi_image_free(imageData);
+        if (localZ == 0) {
+            rebuildChunk(
+                    chunkX,
+                    chunkY,
+                    chunkZ - 1
+            );
+        }
 
-            glBindTexture(GL_TEXTURE_2D, 0);
-
-            return newTextureId;
+        if (localZ == Chunk.SIZE - 1) {
+            rebuildChunk(
+                    chunkX,
+                    chunkY,
+                    chunkZ + 1
+            );
         }
     }
+
+    private void rebuildChunk(
+            int chunkX,
+            int chunkY,
+            int chunkZ
+    ) {
+        System.out.println(
+                "Rebuilding chunk: " +
+                        chunkX + ", " +
+                        chunkY + ", " +
+                        chunkZ
+        );
+        Chunk chunk =
+                world.getChunk(
+                        chunkX,
+                        chunkY,
+                        chunkZ
+                );
+
+        if (chunk == null) {
+            return;
+        }
+
+        Mesh oldMesh =
+                chunkMeshes.remove(chunk);
+
+        if (oldMesh != null) {
+            oldMesh.destroy();
+        }
+
+        if (chunk.isEmpty()) {
+            return;
+        }
+
+        Mesh newMesh =
+                chunkMeshBuilder.build(
+                        world,
+                        chunk
+                );
+
+        chunkMeshes.put(
+                chunk,
+                newMesh
+        );
+    }
+
+
 
     private void createShaders() {
         String vertexShaderSource = """
@@ -441,24 +614,13 @@ public class Main {
         in vec2 fragmentTextureCoordinate;
 
         uniform sampler2D blockTexture;
-        uniform vec2 atlasOffset;
 
         out vec4 finalColor;
 
         void main() {
-            /*
-             * The atlas is a 2 × 2 grid.
-             *
-             * Multiplying by 0.5 shrinks the UV coordinates
-             * so they cover only one quarter of the image.
-             */
-            vec2 atlasCoordinate =
-                    fragmentTextureCoordinate * 0.5
-                    + atlasOffset;
-
             finalColor = texture(
                     blockTexture,
-                    atlasCoordinate
+                    fragmentTextureCoordinate
             );
         }
         """;
@@ -502,16 +664,7 @@ public class Main {
                 "mvpMatrix"
         );
 
-        atlasOffsetUniformLocation = glGetUniformLocation(
-                shaderProgramId,
-                "atlasOffset"
-        );
 
-        if (atlasOffsetUniformLocation == -1) {
-            throw new RuntimeException(
-                    "Could not find the atlasOffset shader uniform."
-            );
-        }
 
         int textureUniformLocation = glGetUniformLocation(
                 shaderProgramId,
@@ -558,159 +711,208 @@ public class Main {
     }
 
     private void processInput() {
-        float cameraSpeed = 3.0f * deltaTime;
+        float cameraSpeed = 6.0f * deltaTime;
 
-        /*
-         * Forward.
-         */
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-            cameraPosition.add(
-                    new Vector3f(cameraFront).mul(cameraSpeed)
-            );
+            camera.moveForward(cameraSpeed);
         }
 
-        /*
-         * Backward.
-         */
+        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
+            cameraSpeed*=2f; //not working ill fix later
+        }
+
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-            cameraPosition.sub(
-                    new Vector3f(cameraFront).mul(cameraSpeed)
-            );
+            camera.moveBackward(cameraSpeed);
         }
 
-        /*
-         * Calculate the direction pointing to the camera's right.
-         */
-        Vector3f cameraRight = new Vector3f(cameraFront)
-                .cross(cameraUp)
-                .normalize();
-
-        /*
-         * Move left.
-         */
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-            cameraPosition.sub(
-                    new Vector3f(cameraRight).mul(cameraSpeed)
-            );
+            camera.moveLeft(cameraSpeed);
         }
 
-        /*
-         * Move right.
-         */
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-            cameraPosition.add(
-                    new Vector3f(cameraRight).mul(cameraSpeed)
-            );
+            camera.moveRight(cameraSpeed);
         }
 
-        /*
-         * Move upward.
-         */
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-            cameraPosition.y += cameraSpeed;
+            camera.moveUp(cameraSpeed);
         }
 
-        /*
-         * Move downward.
-         */
         if (
                 glfwGetKey(window, GLFW_KEY_LEFT_SHIFT)
                         == GLFW_PRESS
         ) {
-            cameraPosition.y -= cameraSpeed;
+            camera.moveDown(cameraSpeed);
         }
     }
 
-    private Block[] createBlocks() {
-        int worldSize = 7;
-        int floorBlocks = worldSize * worldSize;
-        int pillarBlocks = 4;
 
-        Block[] blocks =
-                new Block[floorBlocks + pillarBlocks];
+    private void breakTargetedBlock() {
+        Vector3f rayPosition =
+                camera.getPosition()
+                        .add(0.0f, 0.5f, 0.0f);
 
-        int index = 0;
+        Vector3f rayDirection =
+                camera.getFront().normalize();
 
-        /*
-         * Create the floor.
-         */
-        for (int x = 0; x < worldSize; x++) {
-            for (int z = 0; z < worldSize; z++) {
+        float maximumDistance = 6.0f;
+        float stepSize = 0.05f;
 
-                /*
-                 * Make a simple pattern:
-                 *
-                 * Most blocks are grass.
-                 * The outer edge is sand.
-                 */
-                boolean isEdge =
-                        x == 0 ||
-                                z == 0 ||
-                                x == worldSize - 1 ||
-                                z == worldSize - 1;
+        for (
+                float distance = 0.0f;
+                distance <= maximumDistance;
+                distance += stepSize
+        ) {
+            /*
+             * Calculate a point along the ray.
+             *
+             * point = camera position
+             *       + direction × distance
+             */
+            Vector3f currentPoint =
+                    new Vector3f(rayDirection)
+                            .mul(distance)
+                            .add(rayPosition);
 
-                int textureIndex;
+            int blockX =
+                    (int) Math.floor(currentPoint.x + 0.5f);
 
-                if (isEdge) {
-                    textureIndex = 3; // Sand
-                } else {
-                    textureIndex = 0; // Grass
-                }
+            int blockY =
+                    (int) Math.floor(currentPoint.y + 0.5f);
 
-                blocks[index] = new Block(
-                        new Vector3f(
-                                x - worldSize / 2,
-                                -1.0f,
-                                z - worldSize / 2
-                        ),
-                        textureIndex
+            int blockZ =
+                    (int) Math.floor(currentPoint.z + 0.5f);
+
+
+
+            BlockType block =
+                    world.getBlock(
+                            blockX,
+                            blockY,
+                            blockZ
+                    );
+
+            if (block != null) {
+                System.out.println(
+                        "Breaking block at: " +
+                                blockX + ", " +
+                                blockY + ", " +
+                                blockZ
                 );
 
-                index++;
+                world.setBlock(
+                        blockX,
+                        blockY,
+                        blockZ,
+                        null
+                );
+
+                rebuildChunksAroundBlock(
+                        blockX,
+                        blockY,
+                        blockZ
+                );
+
+                /*
+                 * Stop after destroying the first block hit.
+                 */
+                return;
             }
         }
 
-        /*
-         * Create a pillar.
-         *
-         * Bottom two blocks are stone.
-         * Top two blocks are dirt.
-         */
-        for (int y = 0; y < pillarBlocks; y++) {
-            int textureIndex;
-
-            if (y < 2) {
-                textureIndex = 2; // Stone
-            } else {
-                textureIndex = 1; // Dirt
-            }
-
-            blocks[index] = new Block(
-                    new Vector3f(
-                            1.0f,
-                            y,
-                            0.0f
-                    ),
-                    textureIndex
-            );
-
-            index++;
-        }
-
-        return blocks;
+        System.out.println("No block in range.");
     }
 
-    private static class Block {
-        private final Vector3f position;
-        private final int textureIndex;
 
-        private Block(
-                Vector3f position,
-                int textureIndex
+
+
+
+
+    private void placeTargetedBlock() {
+        Vector3f rayPosition =
+                camera.getPosition()
+                        .add(0.0f, 0.5f, 0.0f);
+
+        Vector3f rayDirection =
+                camera.getFront().normalize();
+
+        float maximumDistance = 6.0f;
+        float stepSize = 0.05f;
+
+        int previousX = -1;
+        int previousY = -1;
+        int previousZ = -1;
+
+        boolean hasPreviousCell = false;
+
+        for (
+                float distance = 0.0f;
+                distance <= maximumDistance;
+                distance += stepSize
         ) {
-            this.position = position;
-            this.textureIndex = textureIndex;
+            Vector3f currentPoint =
+                    new Vector3f(rayDirection)
+                            .mul(distance)
+                            .add(rayPosition);
+
+            int blockX =
+                    (int) Math.floor(currentPoint.x + 0.5f);
+
+            int blockY =
+                    (int) Math.floor(currentPoint.y + 0.5f);
+
+            int blockZ =
+                    (int) Math.floor(currentPoint.z + 0.5f);
+
+
+
+            BlockType block =
+                    world.getBlock(
+                            blockX,
+                            blockY,
+                            blockZ
+                    );
+
+            if (block != null) {
+                /*
+                 * We hit a solid block.
+                 * Place into the empty cell immediately before it.
+                 */
+                if (hasPreviousCell) {
+                    System.out.println(
+                            "Placing block at: " +
+                                    previousX + ", " +
+                                    previousY + ", " +
+                                    previousZ
+                    );
+
+                    world.setBlock(
+                            previousX,
+                            previousY,
+                            previousZ,
+                            BlockType.GRASS
+                    );
+
+                    rebuildChunksAroundBlock(
+                            previousX,
+                            previousY,
+                            previousZ
+                    );
+                }
+
+                return;
+            }
+
+            /*
+             * This cell is empty, so remember it.
+             */
+            previousX = blockX;
+            previousY = blockY;
+            previousZ = blockZ;
+
+            hasPreviousCell = true;
         }
+
+        System.out.println("No block in range.");
     }
 
     private void gameLoop() {
@@ -724,6 +926,37 @@ public class Main {
             previousFrameTime = currentFrameTime;
 
             processInput();
+            updateLoadedChunks();
+            if (removeBlockRequested) {
+                /*
+                 * Remove the block in the center of the floor.
+                 * null represents empty space.
+                 */
+                world.setBlock(
+                        0,
+                        0,
+                        0,
+                        null
+                );
+
+                rebuildChunksAroundBlock(
+                        0,
+                        0,
+                        0
+                );
+
+                removeBlockRequested = false;
+            }
+
+            if (placeBlockRequested) {
+                placeTargetedBlock();
+                placeBlockRequested = false;
+            }
+
+            if (breakBlockRequested) {
+                breakTargetedBlock();
+                breakBlockRequested = false;
+            }
 
             glClear(
                     GL_COLOR_BUFFER_BIT |
@@ -742,15 +975,8 @@ public class Main {
              * Moving the world backward by 3 units has the same
              * visual result as moving the camera forward.
              */
-            Vector3f cameraTarget = new Vector3f(cameraPosition)
-                    .add(cameraFront);
-
-            Matrix4f viewMatrix = new Matrix4f()
-                    .lookAt(
-                            cameraPosition,
-                            cameraTarget,
-                            cameraUp
-                    );
+            Matrix4f viewMatrix =
+                    camera.createViewMatrix();
 
             float aspectRatio =
                     (float) framebufferWidth /
@@ -765,7 +991,7 @@ public class Main {
                             (float) Math.toRadians(45.0),
                             aspectRatio,
                             0.1f,
-                            100.0f
+                            500.0f
                     );
 
             /*
@@ -776,51 +1002,30 @@ public class Main {
             glUseProgram(shaderProgramId);
 
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, textureId);
+            atlasTexture.bind();
 
-            glBindVertexArray(vaoId);
+            Matrix4f mvpMatrix =
+                    new Matrix4f(projectionMatrix)
+                            .mul(viewMatrix);
 
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                FloatBuffer matrixBuffer =
+                        stack.mallocFloat(16);
 
-            try (MemoryStack stack = stackPush()) {
-                FloatBuffer matrixBuffer = stack.mallocFloat(16);
+                mvpMatrix.get(matrixBuffer);
 
-                for (Vector3f blockPosition : blockPositions) {
-                    /*
-                     * Move this copy of the cube to its block position.
-                     */
-                    Matrix4f modelMatrix = new Matrix4f()
-                            .translate(blockPosition);
-
-                    /*
-                     * Combine projection, camera, and block position.
-                     */
-                    Matrix4f mvpMatrix =
-                            new Matrix4f(projectionMatrix)
-                                    .mul(viewMatrix)
-                                    .mul(modelMatrix);
-
-                    /*
-                     * Reuse the same buffer for each block.
-                     */
-                    matrixBuffer.clear();
-                    mvpMatrix.get(matrixBuffer);
-
-                    glUniformMatrix4fv(
-                            mvpUniformLocation,
-                            false,
-                            matrixBuffer
-                    );
-
-                    glDrawElements(
-                            GL_TRIANGLES,
-                            36,
-                            GL_UNSIGNED_INT,
-                            0
-                    );
-                }
+                glUniformMatrix4fv(
+                        mvpUniformLocation,
+                        false,
+                        matrixBuffer
+                );
             }
 
-            glBindVertexArray(0);
+            for (Mesh mesh : chunkMeshes.values()) {
+                mesh.render();
+            }
+
+            atlasTexture.unbind();
             glUseProgram(0);
 
             glfwSwapBuffers(window);
@@ -831,11 +1036,13 @@ public class Main {
     private void cleanup() {
         glDeleteProgram(shaderProgramId);
 
-        glDeleteBuffers(eboId);
-        glDeleteBuffers(vboId);
-        glDeleteVertexArrays(vaoId);
+        for (Mesh mesh : chunkMeshes.values()) {
+            mesh.destroy();
+        }
 
-        glDeleteTextures(textureId);
+        chunkMeshes.clear();
+
+        atlasTexture.destroy();
 
         glfwDestroyWindow(window);
         glfwTerminate();
