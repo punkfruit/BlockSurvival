@@ -1,8 +1,6 @@
 package com.daniel.blocksurvival.graphics;
 
-import com.daniel.blocksurvival.world.BlockType;
-import com.daniel.blocksurvival.world.Chunk;
-import com.daniel.blocksurvival.world.World;
+import com.daniel.blocksurvival.world.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -208,7 +206,7 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y - 0.5f, z - 0.5f,
                 x + 0.5f, y - 0.5f, z + 0.5f,
                 x + 0.5f, y + 0.5f, z + 0.5f,
-                type
+                type.getSideTexture()
         );
 
         /*
@@ -219,7 +217,7 @@ public class ChunkMeshBuilder {
                 x + 0.5f, y - 0.5f, z - 0.5f,
                 x - 0.5f, y - 0.5f, z + 0.5f,
                 x - 0.5f, y + 0.5f, z + 0.5f,
-                type
+                type.getSideTexture()
         );
 
     }
@@ -235,7 +233,7 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y - 0.5f, z + 0.5f,
                 x + 0.5f, y - 0.5f, z + 0.5f,
                 x + 0.5f, y + 0.5f, z + 0.5f,
-                type
+                type.getTextureForFace(BlockFace.NORTH)
         );
     }
 
@@ -250,7 +248,7 @@ public class ChunkMeshBuilder {
                 x + 0.5f, y - 0.5f, z - 0.5f,
                 x - 0.5f, y - 0.5f, z - 0.5f,
                 x - 0.5f, y + 0.5f, z - 0.5f,
-                type
+                type.getTextureForFace(BlockFace.SOUTH)
         );
     }
 
@@ -265,7 +263,7 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y - 0.5f, z - 0.5f,
                 x - 0.5f, y - 0.5f, z + 0.5f,
                 x - 0.5f, y + 0.5f, z + 0.5f,
-                type
+                type.getTextureForFace(BlockFace.WEST)
         );
     }
 
@@ -280,7 +278,7 @@ public class ChunkMeshBuilder {
                 x + 0.5f, y - 0.5f, z + 0.5f,
                 x + 0.5f, y - 0.5f, z - 0.5f,
                 x + 0.5f, y + 0.5f, z - 0.5f,
-                type
+                type.getTextureForFace(BlockFace.EAST)
         );
     }
 
@@ -295,7 +293,7 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y + 0.5f, z + 0.5f,
                 x + 0.5f, y + 0.5f, z + 0.5f,
                 x + 0.5f, y + 0.5f, z - 0.5f,
-                type
+                type.getTextureForFace(BlockFace.TOP)
         );
     }
 
@@ -310,7 +308,7 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y - 0.5f, z - 0.5f,
                 x + 0.5f, y - 0.5f, z - 0.5f,
                 x + 0.5f, y - 0.5f, z + 0.5f,
-                type
+                type.getTextureForFace(BlockFace.BOTTOM)
         );
     }
 
@@ -319,16 +317,19 @@ public class ChunkMeshBuilder {
             float x2, float y2, float z2,
             float x3, float y3, float z3,
             float x4, float y4, float z4,
-            BlockType type
+            AtlasTile tile
     ) {
         faceCount++;
         int firstVertexIndex =
                 vertices.size() / 5;
 
-        float atlasX = type.getAtlasX();
-        float atlasY = type.getAtlasY();
-
         float tileSize = BlockType.getTileSize();
+
+        float atlasX =
+                tile.column() * tileSize;
+
+        float atlasY =
+                tile.row() * tileSize;
 
         /*
          * Position plus final atlas UV coordinate.

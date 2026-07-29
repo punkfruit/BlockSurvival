@@ -432,4 +432,50 @@ public class Camera {
     public Vector3f getFront() {
         return new Vector3f(front);
     }
+
+    public boolean overlapsBlock(
+            int blockX,
+            int blockY,
+            int blockZ
+    ) {
+        float playerMinX =
+                position.x - PLAYER_RADIUS;
+
+        float playerMaxX =
+                position.x + PLAYER_RADIUS;
+
+        float playerMinY =
+                position.y - EYE_HEIGHT;
+
+        float playerMaxY =
+                playerMinY + PLAYER_HEIGHT;
+
+        float playerMinZ =
+                position.z - PLAYER_RADIUS;
+
+        float playerMaxZ =
+                position.z + PLAYER_RADIUS;
+
+        /*
+         * Blocks are centered on integer coordinates,
+         * so each block extends 0.5 in every direction.
+         */
+        float blockMinX = blockX - 0.5f;
+        float blockMaxX = blockX + 0.5f;
+
+        float blockMinY = blockY - 0.5f;
+        float blockMaxY = blockY + 0.5f;
+
+        float blockMinZ = blockZ - 0.5f;
+        float blockMaxZ = blockZ + 0.5f;
+
+        return playerMaxX > blockMinX &&
+                playerMinX < blockMaxX &&
+
+                playerMaxY > blockMinY &&
+                playerMinY < blockMaxY &&
+
+                playerMaxZ > blockMinZ &&
+                playerMinZ < blockMaxZ;
+    }
 }

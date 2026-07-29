@@ -1,11 +1,13 @@
 package com.daniel.blocksurvival;
 
+import com.daniel.blocksurvival.graphics.BlockOutlineRenderer;
 import com.daniel.blocksurvival.world.BlockType;
 import com.daniel.blocksurvival.world.World;
 import com.daniel.blocksurvival.graphics.Mesh;
 import com.daniel.blocksurvival.graphics.ChunkMeshBuilder;
 import com.daniel.blocksurvival.world.ChunkManager;
 import com.daniel.blocksurvival.world.TerrainGenerator;
+import com.daniel.blocksurvival.world.RaycastResult;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
 import org.joml.Matrix4f;
@@ -51,6 +53,10 @@ public class Main {
     private Texture atlasTexture;
     private int shaderProgramId;
     private int mvpUniformLocation;
+
+    private BlockOutlineRenderer outlineRenderer;
+
+    private RaycastResult currentRaycast;
 
 
     private int framebufferWidth = 1280;
@@ -260,6 +266,8 @@ public class Main {
         updateLoadedChunks();
 
         createShaders();
+
+        outlineRenderer = new BlockOutlineRenderer();
 
         atlasTexture = new Texture(
                 "src/main/resources/textures/block_atlas.png"
@@ -821,100 +829,111 @@ public class Main {
 
 
     private void breakTargetedBlock() {
-        Vector3f rayPosition =
-                camera.getPosition()
-                        .add(0.0f, 0.5f, 0.0f);
-
-        Vector3f rayDirection =
-                camera.getFront().normalize();
-
-        float maximumDistance = 6.0f;
-        float stepSize = 0.05f;
-
-        for (
-                float distance = 0.0f;
-                distance <= maximumDistance;
-                distance += stepSize
-        ) {
-            /*
-             * Calculate a point along the ray.
-             *
-             * point = camera position
-             *       + direction × distance
-             */
-            Vector3f currentPoint =
-                    new Vector3f(rayDirection)
-                            .mul(distance)
-                            .add(rayPosition);
-
-            int blockX =
-                    (int) Math.floor(currentPoint.x + 0.5f);
-
-            int blockY =
-                    (int) Math.floor(currentPoint.y + 0.5f);
-
-            int blockZ =
-                    (int) Math.floor(currentPoint.z + 0.5f);
-
-
-
-            BlockType block =
-                    world.getBlock(
-                            blockX,
-                            blockY,
-                            blockZ
-                    );
-
-            if (block != null) {
-                System.out.println(
-                        "Breaking block at: " +
-                                blockX + ", " +
-                                blockY + ", " +
-                                blockZ
-                );
-
-                world.setBlock(
-                        blockX,
-                        blockY,
-                        blockZ,
-                        null
-                );
-
-                rebuildChunksAroundBlock(
-                        blockX,
-                        blockY,
-                        blockZ
-                );
-
-                /*
-                 * Stop after destroying the first block hit.
-                 */
-                return;
-            }
+        if (currentRaycast == null) {
+            System.out.println("No block in range.");
+            return;
         }
 
-        System.out.println("No block in range.");
+        int blockX = currentRaycast.hitX();
+        int blockY = currentRaycast.hitY();
+        int blockZ = currentRaycast.hitZ();
+
+        System.out.println(
+                "Breaking block at: " +
+                        blockX + ", " +
+                        blockY + ", " +
+                        blockZ
+        );
+
+        world.setBlock(
+                blockX,
+                blockY,
+                blockZ,
+                null
+        );
+
+        rebuildChunksAroundBlock(
+                blockX,
+                blockY,
+                blockZ
+        );
+
+        /*
+         * Immediately update the target after removing
+         * the block.
+         */
+        currentRaycast = calculateRaycast();
     }
 
 
-
-
-
-
     private void placeTargetedBlock() {
-        Vector3f rayPosition =
-                camera.getPosition()
-                        .add(0.0f, 0.5f, 0.0f);
+        if (currentRaycast == null) {
+            System.out.println("No block in range.");
+            return;
+        }
+
+        int placementX =
+                currentRaycast.placementX();
+
+        int placementY =
+                currentRaycast.placementY();
+
+        int placementZ =
+                currentRaycast.placementZ();
+
+        System.out.println(
+                "Placing block at: " +
+                        placementX + ", " +
+                        placementY + ", " +
+                        placementZ
+        );
+
+        if (camera.overlapsBlock(
+                placementX,
+                placementY,
+                placementZ
+        )) {
+            System.out.println(
+                    "Cannot place a block inside the player."
+            );
+
+            return;
+        }
+
+        world.setBlock(
+                placementX,
+                placementY,
+                placementZ,
+                BlockType.GRASS
+        );
+
+        rebuildChunksAroundBlock(
+                placementX,
+                placementY,
+                placementZ
+        );
+
+        currentRaycast = calculateRaycast();
+    }
+
+    private RaycastResult calculateRaycast() {
+        /*
+         * Make copies so we do not accidentally modify
+         * the camera's internal vectors.
+         */
+        Vector3f rayOrigin =
+                new Vector3f(camera.getPosition());
 
         Vector3f rayDirection =
-                camera.getFront().normalize();
+                new Vector3f(camera.getFront())
+                        .normalize();
 
         float maximumDistance = 6.0f;
         float stepSize = 0.05f;
 
-        int previousX = -1;
-        int previousY = -1;
-        int previousZ = -1;
+        int previousX = 0;
+        int previousY = 0;
+        int previousZ = 0;
 
         boolean hasPreviousCell = false;
 
@@ -923,21 +942,37 @@ public class Main {
                 distance <= maximumDistance;
                 distance += stepSize
         ) {
+            /*
+             * Find a point along the ray:
+             *
+             * origin + direction × distance
+             */
             Vector3f currentPoint =
                     new Vector3f(rayDirection)
                             .mul(distance)
-                            .add(rayPosition);
+                            .add(rayOrigin);
 
+            /*
+             * Your blocks are centered on integer coordinates.
+             *
+             * Adding 0.5 before flooring finds the nearest
+             * block center instead of treating integers as
+             * block corners.
+             */
             int blockX =
-                    (int) Math.floor(currentPoint.x + 0.5f);
+                    (int) Math.floor(
+                            currentPoint.x + 0.5f
+                    );
 
             int blockY =
-                    (int) Math.floor(currentPoint.y + 0.5f);
+                    (int) Math.floor(
+                            currentPoint.y + 0.5f
+                    );
 
             int blockZ =
-                    (int) Math.floor(currentPoint.z + 0.5f);
-
-
+                    (int) Math.floor(
+                            currentPoint.z + 0.5f
+                    );
 
             BlockType block =
                     world.getBlock(
@@ -948,36 +983,31 @@ public class Main {
 
             if (block != null) {
                 /*
-                 * We hit a solid block.
-                 * Place into the empty cell immediately before it.
+                 * We found the first solid block.
                  */
-                if (hasPreviousCell) {
-                    System.out.println(
-                            "Placing block at: " +
-                                    previousX + ", " +
-                                    previousY + ", " +
-                                    previousZ
-                    );
-
-                    world.setBlock(
-                            previousX,
-                            previousY,
-                            previousZ,
-                            BlockType.GRASS
-                    );
-
-                    rebuildChunksAroundBlock(
-                            previousX,
-                            previousY,
-                            previousZ
-                    );
+                if (!hasPreviousCell) {
+                    /*
+                     * This would mean the ray began inside
+                     * a solid block. We cannot safely place
+                     * anything in front of it.
+                     */
+                    return null;
                 }
 
-                return;
+                return new RaycastResult(
+                        blockX,
+                        blockY,
+                        blockZ,
+                        previousX,
+                        previousY,
+                        previousZ
+                );
             }
 
             /*
              * This cell is empty, so remember it.
+             * If the next cell is solid, this becomes
+             * the placement position.
              */
             previousX = blockX;
             previousY = blockY;
@@ -986,8 +1016,61 @@ public class Main {
             hasPreviousCell = true;
         }
 
-        System.out.println("No block in range.");
+        /*
+         * Nothing was hit within six blocks.
+         */
+        return null;
     }
+
+    private void updateTargetedBlock() {
+        Vector3f rayPosition =
+                new Vector3f(camera.getPosition())
+                        .add(0.0f, 0.5f, 0.0f);
+
+        Vector3f rayDirection =
+                new Vector3f(camera.getFront())
+                        .normalize();
+
+        float maximumDistance = 6.0f;
+        float stepSize = 0.05f;
+
+
+        for (
+                float distance = 0.0f;
+                distance <= maximumDistance;
+                distance += stepSize
+        ) {
+            Vector3f currentPoint =
+                    new Vector3f(rayDirection)
+                            .mul(distance)
+                            .add(rayPosition);
+
+            int blockX =
+                    (int) Math.floor(
+                            currentPoint.x + 0.5f
+                    );
+
+            int blockY =
+                    (int) Math.floor(
+                            currentPoint.y + 0.5f
+                    );
+
+            int blockZ =
+                    (int) Math.floor(
+                            currentPoint.z + 0.5f
+                    );
+
+            BlockType block =
+                    world.getBlock(
+                            blockX,
+                            blockY,
+                            blockZ
+                    );
+
+
+        }
+    }
+
 
     private void gameLoop() {
         while (!glfwWindowShouldClose(window)) {
@@ -1001,6 +1084,7 @@ public class Main {
 
             processInput();
             camera.updatePhysics(world, deltaTime);
+            currentRaycast = calculateRaycast();
             updateLoadedChunks();
             if (removeBlockRequested) {
                 /*
@@ -1103,6 +1187,16 @@ public class Main {
             atlasTexture.unbind();
             glUseProgram(0);
 
+            if (currentRaycast != null) {
+                outlineRenderer.render(
+                        currentRaycast.hitX(),
+                        currentRaycast.hitY(),
+                        currentRaycast.hitZ(),
+                        projectionMatrix,
+                        viewMatrix
+                );
+            }
+
             glfwSwapBuffers(window);
             glfwPollEvents();
         }
@@ -1121,6 +1215,10 @@ public class Main {
 
         glfwDestroyWindow(window);
         glfwTerminate();
+
+        if (outlineRenderer != null) {
+            outlineRenderer.cleanup();
+        }
 
         GLFWErrorCallback callback = glfwSetErrorCallback(null);
 
