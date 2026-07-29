@@ -42,7 +42,7 @@ public class Main {
             new ChunkMeshBuilder();
 
     private final TerrainGenerator terrainGenerator =
-            new TerrainGenerator(44444);
+            new TerrainGenerator(33333);
 
     private boolean removeBlockRequested = false;
 
@@ -603,11 +603,13 @@ public class Main {
 
         layout (location = 0) in vec3 position;
         layout (location = 1) in vec2 textureCoordinate;
+        layout (location = 2) in float ambientOcclusion;
 
         uniform mat4 mvpMatrix;
 
         out vec2 fragmentTextureCoordinate;
         out vec3 fragmentWorldPosition;
+        out float fragmentAO;
 
         void main() {
             gl_Position =
@@ -616,6 +618,8 @@ public class Main {
 
             fragmentTextureCoordinate =
                     textureCoordinate;
+            
+            fragmentAO = ambientOcclusion;
 
             fragmentWorldPosition =
                     position;
@@ -627,6 +631,7 @@ public class Main {
 
         in vec2 fragmentTextureCoordinate;
         in vec3 fragmentWorldPosition;
+        in float fragmentAO;
 
         uniform sampler2D blockTexture;
 
@@ -702,7 +707,9 @@ public class Main {
 
             finalColor =
                     vec4(
-                            textureColor.rgb * brightness,
+                            textureColor.rgb *
+                            brightness *
+                            fragmentAO,
                             textureColor.a
                     );
         }

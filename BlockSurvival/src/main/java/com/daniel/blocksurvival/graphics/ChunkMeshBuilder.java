@@ -100,6 +100,53 @@ public class ChunkMeshBuilder {
                 !neighbor.isOpaque();
     }
 
+    private boolean blocksAmbientLight(
+            World world,
+            int x,
+            int y,
+            int z
+    ) {
+        BlockType block = world.getBlock(x, y, z);
+
+        return block != null &&
+                block.isOpaque();
+    }
+
+    private float calculateVertexAO(
+            boolean side1,
+            boolean side2,
+            boolean corner
+    ) {
+        /*
+         * When both side blocks are present, the diagonal
+         * corner block cannot make this vertex any darker.
+         */
+        if (side1 && side2) {
+            return 0.4f;
+        }
+
+        int occupiedNeighbors = 0;
+
+        if (side1) {
+            occupiedNeighbors++;
+        }
+
+        if (side2) {
+            occupiedNeighbors++;
+        }
+
+        if (corner) {
+            occupiedNeighbors++;
+        }
+
+        return switch (occupiedNeighbors) {
+            case 0 -> 1.0f;
+            case 1 -> 0.8f;
+            case 2 -> 0.6f;
+            default -> 0.4f;
+        };
+    }
+
     private void addCube(
             World world,
             int worldX,
@@ -114,6 +161,7 @@ public class ChunkMeshBuilder {
                 worldZ
         )) {
             addTopFace(
+                    world,
                     worldX,
                     worldY,
                     worldZ,
@@ -128,6 +176,7 @@ public class ChunkMeshBuilder {
                 worldZ
         )) {
             addBottomFace(
+                    world,
                     worldX,
                     worldY,
                     worldZ,
@@ -142,6 +191,7 @@ public class ChunkMeshBuilder {
                 worldZ + 1
         )) {
             addFrontFace(
+                    world,
                     worldX,
                     worldY,
                     worldZ,
@@ -156,6 +206,7 @@ public class ChunkMeshBuilder {
                 worldZ - 1
         )) {
             addBackFace(
+                    world,
                     worldX,
                     worldY,
                     worldZ,
@@ -170,6 +221,7 @@ public class ChunkMeshBuilder {
                 worldZ
         )) {
             addLeftFace(
+                    world,
                     worldX,
                     worldY,
                     worldZ,
@@ -184,6 +236,7 @@ public class ChunkMeshBuilder {
                 worldZ
         )) {
             addRightFace(
+                    world,
                     worldX,
                     worldY,
                     worldZ,
@@ -223,6 +276,7 @@ public class ChunkMeshBuilder {
     }
 
     private void addFrontFace(
+            World world,
             float x,
             float y,
             float z,
@@ -238,6 +292,7 @@ public class ChunkMeshBuilder {
     }
 
     private void addBackFace(
+            World world,
             float x,
             float y,
             float z,
@@ -253,6 +308,7 @@ public class ChunkMeshBuilder {
     }
 
     private void addLeftFace(
+            World world,
             float x,
             float y,
             float z,
@@ -268,6 +324,7 @@ public class ChunkMeshBuilder {
     }
 
     private void addRightFace(
+            World world,
             float x,
             float y,
             float z,
@@ -283,6 +340,7 @@ public class ChunkMeshBuilder {
     }
 
     private void addTopFace(
+            World world,
             float x,
             float y,
             float z,
@@ -298,6 +356,7 @@ public class ChunkMeshBuilder {
     }
 
     private void addBottomFace(
+            World world,
             float x,
             float y,
             float z,
@@ -321,7 +380,7 @@ public class ChunkMeshBuilder {
     ) {
         faceCount++;
         int firstVertexIndex =
-                vertices.size() / 5;
+                vertices.size() / 6;
 
         float tileSize = BlockType.getTileSize();
 
@@ -337,25 +396,29 @@ public class ChunkMeshBuilder {
         addVertex(
                 x1, y1, z1,
                 atlasX,
-                atlasY
+                atlasY,
+                1f
         );
 
         addVertex(
                 x2, y2, z2,
                 atlasX,
-                atlasY + tileSize
+                atlasY + tileSize,
+                1f
         );
 
         addVertex(
                 x3, y3, z3,
                 atlasX + tileSize,
-                atlasY + tileSize
+                atlasY + tileSize,
+                1f
         );
 
         addVertex(
                 x4, y4, z4,
                 atlasX + tileSize,
-                atlasY
+                atlasY,
+                1f
         );
 
         /*
@@ -375,14 +438,18 @@ public class ChunkMeshBuilder {
             float y,
             float z,
             float u,
-            float v
-    ) {
+            float v,
+            float ao
+    )
+    {
         vertices.add(x);
         vertices.add(y);
         vertices.add(z);
 
         vertices.add(u);
         vertices.add(v);
+
+        vertices.add(ao);
     }
 
     private float[] convertVerticesToArray() {
