@@ -328,7 +328,7 @@ public class ChunkMeshBuilder {
         float atlasX = type.getAtlasX();
         float atlasY = type.getAtlasY();
 
-        float tileSize = 0.25f;
+        float tileSize = BlockType.getTileSize();
 
         /*
          * Position plus final atlas UV coordinate.

@@ -599,12 +599,18 @@ public class Main {
         uniform mat4 mvpMatrix;
 
         out vec2 fragmentTextureCoordinate;
+        out vec3 fragmentWorldPosition;
 
         void main() {
-            gl_Position = mvpMatrix * vec4(position, 1.0);
+            gl_Position =
+                    mvpMatrix *
+                    vec4(position, 1.0);
 
             fragmentTextureCoordinate =
                     textureCoordinate;
+
+            fragmentWorldPosition =
+                    position;
         }
         """;
 
@@ -612,6 +618,7 @@ public class Main {
         #version 330 core
 
         in vec2 fragmentTextureCoordinate;
+        in vec3 fragmentWorldPosition;
 
         uniform sampler2D blockTexture;
 
@@ -628,7 +635,68 @@ public class Main {
                 discard;
             }
 
-            finalColor = textureColor;
+            /*
+             * Calculate the direction the current face points.
+             *
+             * dFdx and dFdy measure how the world position changes
+             * across neighboring pixels.
+             */
+            vec3 positionChangeX =
+                    dFdx(fragmentWorldPosition);
+
+            vec3 positionChangeY =
+                    dFdy(fragmentWorldPosition);
+
+            vec3 normal =
+                    normalize(
+                            cross(
+                                    positionChangeX,
+                                    positionChangeY
+                            )
+                    );
+
+            /*
+             * Cross-model plants are visible from both sides.
+             * Flip the normal when viewing the back side so it
+             * receives sensible lighting too.
+             */
+            if (!gl_FrontFacing) {
+                normal = -normal;
+            }
+
+            /*
+             * Direction pointing toward the sun.
+             */
+            vec3 sunDirection =
+                    normalize(
+                            vec3(
+                                    -0.6,
+                                    1.0,
+                                    0.4
+                            )
+                    );
+
+            float sunlight =
+                    max(
+                            dot(normal, sunDirection),
+                            0.0
+                    );
+
+            /*
+             * Ambient light prevents faces pointing away from
+             * the sun from becoming completely black.
+             */
+            float ambientLight = 0.45;
+
+            float brightness =
+                    ambientLight +
+                    sunlight * 0.55;
+
+            finalColor =
+                    vec4(
+                            textureColor.rgb * brightness,
+                            textureColor.a
+                    );
         }
         """;
 
@@ -718,14 +786,20 @@ public class Main {
     }
 
     private void processInput() {
-        float cameraSpeed = 90.0f * deltaTime; //made faster to explore
+        float cameraSpeed = 9.0f * deltaTime;
+
+        /*
+         * Apply sprint before processing movement.
+         */
+        if (
+                glfwGetKey(window, GLFW_KEY_LEFT_CONTROL)
+                        == GLFW_PRESS
+        ) {
+            cameraSpeed *= 2.0f;
+        }
 
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
             camera.moveForward(cameraSpeed);
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
-            cameraSpeed*=2f; //not working ill fix later
         }
 
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
@@ -741,14 +815,7 @@ public class Main {
         }
 
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-            camera.moveUp(cameraSpeed);
-        }
-
-        if (
-                glfwGetKey(window, GLFW_KEY_LEFT_SHIFT)
-                        == GLFW_PRESS
-        ) {
-            camera.moveDown(cameraSpeed);
+            camera.jump();
         }
     }
 
@@ -933,6 +1000,7 @@ public class Main {
             previousFrameTime = currentFrameTime;
 
             processInput();
+            camera.updatePhysics(world, deltaTime);
             updateLoadedChunks();
             if (removeBlockRequested) {
                 /*

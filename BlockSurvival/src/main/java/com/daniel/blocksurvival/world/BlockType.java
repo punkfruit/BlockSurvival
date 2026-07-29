@@ -17,7 +17,10 @@ public enum BlockType {
     private final BlockModel model;
     private final boolean opaque;
 
-    private static final float TILE_SIZE = 0.25f;
+    private static final int TILES_PER_ROW = 32;
+
+    private static final float TILE_SIZE =
+            1.0f / TILES_PER_ROW;
 
     BlockType(
             int atlasColumn,
@@ -49,5 +52,9 @@ public enum BlockType {
 
     public float getAtlasY() {
         return atlasY;
+    }
+
+    public static float getTileSize() {
+        return TILE_SIZE;
     }
 }
