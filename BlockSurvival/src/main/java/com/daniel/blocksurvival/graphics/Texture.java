@@ -18,7 +18,7 @@ public class Texture {
 
     private int load(String filePath) {
 
-        stbi_set_flip_vertically_on_load(true);
+        stbi_set_flip_vertically_on_load(false);
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
 
@@ -62,13 +62,13 @@ public class Texture {
             glTexParameteri(
                     GL_TEXTURE_2D,
                     GL_TEXTURE_WRAP_S,
-                    GL_REPEAT
+                    GL_CLAMP_TO_EDGE
             );
 
             glTexParameteri(
                     GL_TEXTURE_2D,
                     GL_TEXTURE_WRAP_T,
-                    GL_REPEAT
+                    GL_CLAMP_TO_EDGE
             );
 
             glTexImage2D(

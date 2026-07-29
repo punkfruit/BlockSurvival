@@ -56,48 +56,172 @@ public class ChunkMeshBuilder {
                      * position is empty.
                      */
 
-                    if (!world.hasBlock(worldX, worldY + 1, worldZ)) {
-                        addTopFace(worldX, worldY, worldZ, type);
-                    }
+                    switch (type.getModel()) {
 
-                    if (!world.hasBlock(worldX, worldY - 1, worldZ)) {
-                        addBottomFace(worldX, worldY, worldZ, type);
-                    }
+                        case CUBE -> addCube(
+                                world,
+                                worldX,
+                                worldY,
+                                worldZ,
+                                type
+                        );
 
-                    if (!world.hasBlock(worldX, worldY, worldZ + 1)) {
-                        addFrontFace(worldX, worldY, worldZ, type);
-                    }
-
-                    if (!world.hasBlock(worldX, worldY, worldZ - 1)) {
-                        addBackFace(worldX, worldY, worldZ, type);
-                    }
-
-                    if (!world.hasBlock(worldX - 1, worldY, worldZ)) {
-                        addLeftFace(worldX, worldY, worldZ, type);
-                    }
-
-                    if (!world.hasBlock(worldX + 1, worldY, worldZ)) {
-                        addRightFace(worldX, worldY, worldZ, type);
+                        case CROSS -> addCross(
+                                worldX,
+                                worldY,
+                                worldZ,
+                                type
+                        );
                     }
                 }
             }
         }
 
-        int vertexCount = vertices.size() / 5;
-        int triangleCount = indices.size() / 3;
-        int indexCount = indices.size();
 
-        System.out.println("World mesh built:");
-        System.out.println("  Blocks: " + blockCount);
-        System.out.println("  Visible faces: " + faceCount);
-        System.out.println("  Vertices: " + vertexCount);
-        System.out.println("  Triangles: " + triangleCount);
-        System.out.println("  Indices: " + indexCount);
 
         return new Mesh(
                 convertVerticesToArray(),
                 convertIndicesToArray()
         );
+    }
+
+    private boolean shouldRenderFace(
+            World world,
+            int neighborX,
+            int neighborY,
+            int neighborZ
+    ) {
+        BlockType neighbor =
+                world.getBlock(
+                        neighborX,
+                        neighborY,
+                        neighborZ
+                );
+
+        return neighbor == null ||
+                !neighbor.isOpaque();
+    }
+
+    private void addCube(
+            World world,
+            int worldX,
+            int worldY,
+            int worldZ,
+            BlockType type
+    ) {
+        if (shouldRenderFace(
+                world,
+                worldX,
+                worldY + 1,
+                worldZ
+        )) {
+            addTopFace(
+                    worldX,
+                    worldY,
+                    worldZ,
+                    type
+            );
+        }
+
+        if (shouldRenderFace(
+                world,
+                worldX,
+                worldY - 1,
+                worldZ
+        )) {
+            addBottomFace(
+                    worldX,
+                    worldY,
+                    worldZ,
+                    type
+            );
+        }
+
+        if (shouldRenderFace(
+                world,
+                worldX,
+                worldY,
+                worldZ + 1
+        )) {
+            addFrontFace(
+                    worldX,
+                    worldY,
+                    worldZ,
+                    type
+            );
+        }
+
+        if (shouldRenderFace(
+                world,
+                worldX,
+                worldY,
+                worldZ - 1
+        )) {
+            addBackFace(
+                    worldX,
+                    worldY,
+                    worldZ,
+                    type
+            );
+        }
+
+        if (shouldRenderFace(
+                world,
+                worldX - 1,
+                worldY,
+                worldZ
+        )) {
+            addLeftFace(
+                    worldX,
+                    worldY,
+                    worldZ,
+                    type
+            );
+        }
+
+        if (shouldRenderFace(
+                world,
+                worldX + 1,
+                worldY,
+                worldZ
+        )) {
+            addRightFace(
+                    worldX,
+                    worldY,
+                    worldZ,
+                    type
+            );
+        }
+    }
+
+    private void addCross(
+            float x,
+            float y,
+            float z,
+            BlockType type
+    ) {
+        /*
+         * First diagonal quad.
+         */
+        addFace(
+                x - 0.5f, y + 0.5f, z - 0.5f,
+                x - 0.5f, y - 0.5f, z - 0.5f,
+                x + 0.5f, y - 0.5f, z + 0.5f,
+                x + 0.5f, y + 0.5f, z + 0.5f,
+                type
+        );
+
+        /*
+         * Second diagonal quad.
+         */
+        addFace(
+                x + 0.5f, y + 0.5f, z - 0.5f,
+                x + 0.5f, y - 0.5f, z - 0.5f,
+                x - 0.5f, y - 0.5f, z + 0.5f,
+                x - 0.5f, y + 0.5f, z + 0.5f,
+                type
+        );
+
     }
 
     private void addFrontFace(
@@ -204,7 +328,7 @@ public class ChunkMeshBuilder {
         float atlasX = type.getAtlasX();
         float atlasY = type.getAtlasY();
 
-        float tileSize = 0.5f;
+        float tileSize = 0.25f;
 
         /*
          * Position plus final atlas UV coordinate.
@@ -212,25 +336,25 @@ public class ChunkMeshBuilder {
         addVertex(
                 x1, y1, z1,
                 atlasX,
-                atlasY + tileSize
+                atlasY
         );
 
         addVertex(
                 x2, y2, z2,
                 atlasX,
-                atlasY
+                atlasY + tileSize
         );
 
         addVertex(
                 x3, y3, z3,
                 atlasX + tileSize,
-                atlasY
+                atlasY + tileSize
         );
 
         addVertex(
                 x4, y4, z4,
                 atlasX + tileSize,
-                atlasY + tileSize
+                atlasY
         );
 
         /*

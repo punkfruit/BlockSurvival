@@ -40,7 +40,7 @@ public class Main {
             new ChunkMeshBuilder();
 
     private final TerrainGenerator terrainGenerator =
-            new TerrainGenerator(12345);
+            new TerrainGenerator(44444);
 
     private boolean removeBlockRequested = false;
 
@@ -618,10 +618,17 @@ public class Main {
         out vec4 finalColor;
 
         void main() {
-            finalColor = texture(
-                    blockTexture,
-                    fragmentTextureCoordinate
-            );
+            vec4 textureColor =
+                    texture(
+                            blockTexture,
+                            fragmentTextureCoordinate
+                    );
+
+            if (textureColor.a < 0.5) {
+                discard;
+            }
+
+            finalColor = textureColor;
         }
         """;
 
@@ -711,7 +718,7 @@ public class Main {
     }
 
     private void processInput() {
-        float cameraSpeed = 6.0f * deltaTime;
+        float cameraSpeed = 90.0f * deltaTime; //made faster to explore
 
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
             camera.moveForward(cameraSpeed);

@@ -1,17 +1,46 @@
 package com.daniel.blocksurvival.world;
 
 public enum BlockType {
-    GRASS(0.0f, 0.5f),
-    DIRT(0.5f, 0.5f),
-    STONE(0.0f, 0.0f),
-    SAND(0.5f, 0.0f);
+    GRASS(0, 0, BlockModel.CUBE, true),
+    DIRT(1, 0, BlockModel.CUBE, true),
+    STONE(2, 0, BlockModel.CUBE, true),
+    SAND(3, 0, BlockModel.CUBE, true),
+    WOOD(0, 1, BlockModel.CUBE, true),
+    LEAVES(1, 1, BlockModel.CUBE, true),
+    SNOW(0, 0, BlockModel.CUBE, true),
+    CACTUS(0, 0, BlockModel.CUBE, true),
+
+    FLOWER(2, 1, BlockModel.CROSS, false);
 
     private final float atlasX;
     private final float atlasY;
+    private final BlockModel model;
+    private final boolean opaque;
 
-    BlockType(float atlasX, float atlasY) {
-        this.atlasX = atlasX;
-        this.atlasY = atlasY;
+    private static final float TILE_SIZE = 0.25f;
+
+    BlockType(
+            int atlasColumn,
+            int atlasRow,
+            BlockModel model,
+            boolean opaque
+    ) {
+        this.atlasX =
+                atlasColumn * TILE_SIZE;
+
+        this.atlasY =
+                atlasRow * TILE_SIZE;
+
+        this.model = model;
+        this.opaque = opaque;
+    }
+
+    public BlockModel getModel() {
+        return model;
+    }
+
+    public boolean isOpaque() {
+        return opaque;
     }
 
     public float getAtlasX() {
