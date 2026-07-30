@@ -7,18 +7,42 @@ import java.util.List;
 
 public class ChunkMeshBuilder {
 
-    private final List<Float> vertices =
+    private final List<Float> opaqueVertices =
             new ArrayList<>();
 
-    private final List<Integer> indices =
+    private final List<Integer> opaqueIndices =
             new ArrayList<>();
+
+    private final List<Float> transparentVertices =
+            new ArrayList<>();
+
+    private final List<Integer> transparentIndices =
+            new ArrayList<>();
+
+    private List<Float> currentVertices;
+
+    private List<Integer> currentIndices;
 
     private int blockCount;
     private int faceCount;
 
-    public Mesh build(World world, Chunk chunk) {
-        vertices.clear();
-        indices.clear();
+
+    private record FaceAO(
+            float vertex1,
+            float vertex2,
+            float vertex3,
+            float vertex4
+    ) {
+        private static final FaceAO FULL_BRIGHT =
+                new FaceAO(1.0f, 1.0f, 1.0f, 1.0f);
+    }
+
+    public ChunkRenderData build(World world, Chunk chunk) {
+        opaqueVertices.clear();
+        opaqueIndices.clear();
+
+        transparentVertices.clear();
+        transparentIndices.clear();
 
         blockCount = 0;
         faceCount = 0;
@@ -39,6 +63,14 @@ public class ChunkMeshBuilder {
                     }
 
                     blockCount++;
+
+                    if (type == BlockType.WATER) {
+                        currentVertices = transparentVertices;
+                        currentIndices = transparentIndices;
+                    } else {
+                        currentVertices = opaqueVertices;
+                        currentIndices = opaqueIndices;
+                    }
 
                     int worldX =
                             chunk.getWorldOriginX() + localX;
@@ -61,7 +93,8 @@ public class ChunkMeshBuilder {
                                 worldX,
                                 worldY,
                                 worldZ,
-                                type
+                                type,
+                                type.getTopOffset()
                         );
 
                         case CROSS -> addCross(
@@ -77,9 +110,21 @@ public class ChunkMeshBuilder {
 
 
 
-        return new Mesh(
-                convertVerticesToArray(),
-                convertIndicesToArray()
+        Mesh opaqueMesh =
+                createMesh(
+                        opaqueVertices,
+                        opaqueIndices
+                );
+
+        Mesh transparentMesh =
+                createMesh(
+                        transparentVertices,
+                        transparentIndices
+                );
+
+        return new ChunkRenderData(
+                opaqueMesh,
+                transparentMesh
         );
     }
 
@@ -87,7 +132,8 @@ public class ChunkMeshBuilder {
             World world,
             int neighborX,
             int neighborY,
-            int neighborZ
+            int neighborZ,
+            BlockType currentType
     ) {
         BlockType neighbor =
                 world.getBlock(
@@ -96,8 +142,28 @@ public class ChunkMeshBuilder {
                         neighborZ
                 );
 
-        return neighbor == null ||
-                !neighbor.isOpaque();
+        /*
+         * Empty space always exposes the current face.
+         */
+        if (neighbor == null) {
+            return true;
+        }
+
+        /*
+         * Do not create hidden faces between two matching
+         * non-opaque blocks, such as adjacent water blocks.
+         */
+        if (
+                neighbor == currentType &&
+                        !currentType.isOpaque()
+        ) {
+            return false;
+        }
+
+        /*
+         * Faces beside non-opaque blocks remain visible.
+         */
+        return !neighbor.isOpaque();
     }
 
     private boolean blocksAmbientLight(
@@ -110,6 +176,186 @@ public class ChunkMeshBuilder {
 
         return block != null &&
                 block.isOpaque();
+    }
+
+    private FaceAO calculateTopFaceAO(
+            World world,
+            int x,
+            int y,
+            int z
+    ) {
+        return new FaceAO(
+                calculateVertexAO(
+                        blocksAmbientLight(world, x - 1, y + 1, z),
+                        blocksAmbientLight(world, x, y + 1, z - 1),
+                        blocksAmbientLight(world, x - 1, y + 1, z - 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x - 1, y + 1, z),
+                        blocksAmbientLight(world, x, y + 1, z + 1),
+                        blocksAmbientLight(world, x - 1, y + 1, z + 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x + 1, y + 1, z),
+                        blocksAmbientLight(world, x, y + 1, z + 1),
+                        blocksAmbientLight(world, x + 1, y + 1, z + 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x + 1, y + 1, z),
+                        blocksAmbientLight(world, x, y + 1, z - 1),
+                        blocksAmbientLight(world, x + 1, y + 1, z - 1)
+                )
+        );
+    }
+
+    private FaceAO calculateBottomFaceAO(
+            World world,
+            int x,
+            int y,
+            int z
+    ) {
+        return new FaceAO(
+                calculateVertexAO(
+                        blocksAmbientLight(world, x - 1, y - 1, z),
+                        blocksAmbientLight(world, x, y - 1, z + 1),
+                        blocksAmbientLight(world, x - 1, y - 1, z + 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x - 1, y - 1, z),
+                        blocksAmbientLight(world, x, y - 1, z - 1),
+                        blocksAmbientLight(world, x - 1, y - 1, z - 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x + 1, y - 1, z),
+                        blocksAmbientLight(world, x, y - 1, z - 1),
+                        blocksAmbientLight(world, x + 1, y - 1, z - 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x + 1, y - 1, z),
+                        blocksAmbientLight(world, x, y - 1, z + 1),
+                        blocksAmbientLight(world, x + 1, y - 1, z + 1)
+                )
+        );
+    }
+
+    private FaceAO calculateFrontFaceAO(
+            World world,
+            int x,
+            int y,
+            int z
+    ) {
+        return new FaceAO(
+                calculateVertexAO(
+                        blocksAmbientLight(world, x - 1, y, z + 1),
+                        blocksAmbientLight(world, x, y + 1, z + 1),
+                        blocksAmbientLight(world, x - 1, y + 1, z + 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x - 1, y, z + 1),
+                        blocksAmbientLight(world, x, y - 1, z + 1),
+                        blocksAmbientLight(world, x - 1, y - 1, z + 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x + 1, y, z + 1),
+                        blocksAmbientLight(world, x, y - 1, z + 1),
+                        blocksAmbientLight(world, x + 1, y - 1, z + 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x + 1, y, z + 1),
+                        blocksAmbientLight(world, x, y + 1, z + 1),
+                        blocksAmbientLight(world, x + 1, y + 1, z + 1)
+                )
+        );
+    }
+
+    private FaceAO calculateBackFaceAO(
+            World world,
+            int x,
+            int y,
+            int z
+    ) {
+        return new FaceAO(
+                calculateVertexAO(
+                        blocksAmbientLight(world, x + 1, y, z - 1),
+                        blocksAmbientLight(world, x, y + 1, z - 1),
+                        blocksAmbientLight(world, x + 1, y + 1, z - 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x + 1, y, z - 1),
+                        blocksAmbientLight(world, x, y - 1, z - 1),
+                        blocksAmbientLight(world, x + 1, y - 1, z - 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x - 1, y, z - 1),
+                        blocksAmbientLight(world, x, y - 1, z - 1),
+                        blocksAmbientLight(world, x - 1, y - 1, z - 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x - 1, y, z - 1),
+                        blocksAmbientLight(world, x, y + 1, z - 1),
+                        blocksAmbientLight(world, x - 1, y + 1, z - 1)
+                )
+        );
+    }
+
+    private FaceAO calculateLeftFaceAO(
+            World world,
+            int x,
+            int y,
+            int z
+    ) {
+        return new FaceAO(
+                calculateVertexAO(
+                        blocksAmbientLight(world, x - 1, y + 1, z),
+                        blocksAmbientLight(world, x - 1, y, z - 1),
+                        blocksAmbientLight(world, x - 1, y + 1, z - 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x - 1, y - 1, z),
+                        blocksAmbientLight(world, x - 1, y, z - 1),
+                        blocksAmbientLight(world, x - 1, y - 1, z - 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x - 1, y - 1, z),
+                        blocksAmbientLight(world, x - 1, y, z + 1),
+                        blocksAmbientLight(world, x - 1, y - 1, z + 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x - 1, y + 1, z),
+                        blocksAmbientLight(world, x - 1, y, z + 1),
+                        blocksAmbientLight(world, x - 1, y + 1, z + 1)
+                )
+        );
+    }
+
+    private FaceAO calculateRightFaceAO(
+            World world,
+            int x,
+            int y,
+            int z
+    ) {
+        return new FaceAO(
+                calculateVertexAO(
+                        blocksAmbientLight(world, x + 1, y + 1, z),
+                        blocksAmbientLight(world, x + 1, y, z + 1),
+                        blocksAmbientLight(world, x + 1, y + 1, z + 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x + 1, y - 1, z),
+                        blocksAmbientLight(world, x + 1, y, z + 1),
+                        blocksAmbientLight(world, x + 1, y - 1, z + 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x + 1, y - 1, z),
+                        blocksAmbientLight(world, x + 1, y, z - 1),
+                        blocksAmbientLight(world, x + 1, y - 1, z - 1)
+                ),
+                calculateVertexAO(
+                        blocksAmbientLight(world, x + 1, y + 1, z),
+                        blocksAmbientLight(world, x + 1, y, z - 1),
+                        blocksAmbientLight(world, x + 1, y + 1, z - 1)
+                )
+        );
     }
 
     private float calculateVertexAO(
@@ -152,20 +398,46 @@ public class ChunkMeshBuilder {
             int worldX,
             int worldY,
             int worldZ,
-            BlockType type
-    ) {
+            BlockType type,
+            float topOffset
+    ) {/*
+     * Water with another water block above it must extend
+     * all the way to the upper block's bottom boundary.
+     *
+     * Otherwise, the lowered 0.4 surface leaves a visible
+     * 0.1-block gap between stacked water blocks.
+     */
+        boolean hasWaterAbove =
+                type == BlockType.WATER &&
+                        world.getBlock(
+                                worldX,
+                                worldY + 1,
+                                worldZ
+                        ) == BlockType.WATER;
+
+        float sideTopOffset =
+                hasWaterAbove
+                        ? 0.5f
+                        : topOffset;
+        float material =
+                type == BlockType.WATER
+                        ? 1.0f
+                        : 0.0f;
         if (shouldRenderFace(
                 world,
                 worldX,
                 worldY + 1,
-                worldZ
+                worldZ,
+                type
         )) {
             addTopFace(
                     world,
                     worldX,
                     worldY,
                     worldZ,
-                    type
+                    type,
+                    topOffset,
+                    material
             );
         }
 
@@ -173,14 +445,16 @@ public class ChunkMeshBuilder {
                 world,
                 worldX,
                 worldY - 1,
-                worldZ
+                worldZ,
+                type
         )) {
             addBottomFace(
                     world,
                     worldX,
                     worldY,
                     worldZ,
-                    type
+                    type,
+                    material
             );
         }
 
@@ -188,14 +462,17 @@ public class ChunkMeshBuilder {
                 world,
                 worldX,
                 worldY,
-                worldZ + 1
+                worldZ + 1,
+                type
         )) {
             addFrontFace(
                     world,
                     worldX,
                     worldY,
                     worldZ,
-                    type
+                    type,
+                    sideTopOffset,
+                    material
             );
         }
 
@@ -203,14 +480,17 @@ public class ChunkMeshBuilder {
                 world,
                 worldX,
                 worldY,
-                worldZ - 1
+                worldZ - 1,
+                type
         )) {
             addBackFace(
                     world,
                     worldX,
                     worldY,
                     worldZ,
-                    type
+                    type,
+                    sideTopOffset,
+                    material
             );
         }
 
@@ -218,14 +498,17 @@ public class ChunkMeshBuilder {
                 world,
                 worldX - 1,
                 worldY,
-                worldZ
+                worldZ,
+                type
         )) {
             addLeftFace(
                     world,
                     worldX,
                     worldY,
                     worldZ,
-                    type
+                    type,
+                    sideTopOffset,
+                    material
             );
         }
 
@@ -233,14 +516,17 @@ public class ChunkMeshBuilder {
                 world,
                 worldX + 1,
                 worldY,
-                worldZ
+                worldZ,
+                type
         )) {
             addRightFace(
                     world,
                     worldX,
                     worldY,
                     worldZ,
-                    type
+                    type,
+                    sideTopOffset,
+                    material
             );
         }
     }
@@ -259,7 +545,9 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y - 0.5f, z - 0.5f,
                 x + 0.5f, y - 0.5f, z + 0.5f,
                 x + 0.5f, y + 0.5f, z + 0.5f,
-                type.getSideTexture()
+                type.getSideTexture(),
+                FaceAO.FULL_BRIGHT,
+                0.0f
         );
 
         /*
@@ -270,104 +558,172 @@ public class ChunkMeshBuilder {
                 x + 0.5f, y - 0.5f, z - 0.5f,
                 x - 0.5f, y - 0.5f, z + 0.5f,
                 x - 0.5f, y + 0.5f, z + 0.5f,
-                type.getSideTexture()
+                type.getSideTexture(),
+                FaceAO.FULL_BRIGHT,
+                0.0f
         );
 
     }
 
     private void addFrontFace(
             World world,
-            float x,
-            float y,
-            float z,
-            BlockType type
+            int x,
+            int y,
+            int z,
+            BlockType type,
+            float topOffset,
+            float material
     ) {
+        FaceAO ao = calculateFrontFaceAO(
+                world,
+                x,
+                y,
+                z
+        );
+
         addFace(
-                x - 0.5f, y + 0.5f, z + 0.5f,
+                x - 0.5f, y + topOffset, z + 0.5f,
                 x - 0.5f, y - 0.5f, z + 0.5f,
                 x + 0.5f, y - 0.5f, z + 0.5f,
-                x + 0.5f, y + 0.5f, z + 0.5f,
-                type.getTextureForFace(BlockFace.NORTH)
+                x + 0.5f, y + topOffset, z + 0.5f,
+                type.getTextureForFace(BlockFace.NORTH),
+                ao,
+                material
         );
     }
 
     private void addBackFace(
             World world,
-            float x,
-            float y,
-            float z,
-            BlockType type
+            int x,
+            int y,
+            int z,
+            BlockType type,
+            float topOffset,
+            float material
     ) {
+        FaceAO ao = calculateBackFaceAO(
+                world,
+                x,
+                y,
+                z
+        );
+
         addFace(
-                x + 0.5f, y + 0.5f, z - 0.5f,
+                x + 0.5f, y + topOffset, z - 0.5f,
                 x + 0.5f, y - 0.5f, z - 0.5f,
                 x - 0.5f, y - 0.5f, z - 0.5f,
-                x - 0.5f, y + 0.5f, z - 0.5f,
-                type.getTextureForFace(BlockFace.SOUTH)
+                x - 0.5f, y + topOffset, z - 0.5f,
+                type.getTextureForFace(BlockFace.SOUTH),
+                ao,
+                material
         );
     }
 
     private void addLeftFace(
             World world,
-            float x,
-            float y,
-            float z,
-            BlockType type
+            int x,
+            int y,
+            int z,
+            BlockType type,
+            float topOffset,
+            float material
     ) {
+
+        FaceAO ao = calculateLeftFaceAO(
+                world,
+                x,
+                y,
+                z
+        );
         addFace(
-                x - 0.5f, y + 0.5f, z - 0.5f,
+                x - 0.5f, y + topOffset, z - 0.5f,
                 x - 0.5f, y - 0.5f, z - 0.5f,
                 x - 0.5f, y - 0.5f, z + 0.5f,
-                x - 0.5f, y + 0.5f, z + 0.5f,
-                type.getTextureForFace(BlockFace.WEST)
+                x - 0.5f, y + topOffset, z + 0.5f,
+                type.getTextureForFace(BlockFace.WEST),
+                ao,
+                material
         );
     }
 
     private void addRightFace(
             World world,
-            float x,
-            float y,
-            float z,
-            BlockType type
+            int x,
+            int y,
+            int z,
+            BlockType type,
+            float topOffset,
+            float material
     ) {
+
+        FaceAO ao = calculateRightFaceAO(
+                world,
+                x,
+                y,
+                z
+        );
         addFace(
-                x + 0.5f, y + 0.5f, z + 0.5f,
+                x + 0.5f, y + topOffset, z + 0.5f,
                 x + 0.5f, y - 0.5f, z + 0.5f,
                 x + 0.5f, y - 0.5f, z - 0.5f,
-                x + 0.5f, y + 0.5f, z - 0.5f,
-                type.getTextureForFace(BlockFace.EAST)
+                x + 0.5f, y + topOffset, z - 0.5f,
+                type.getTextureForFace(BlockFace.EAST),
+                ao,
+                material
         );
     }
 
     private void addTopFace(
             World world,
-            float x,
-            float y,
-            float z,
-            BlockType type
+            int x,
+            int y,
+            int z,
+            BlockType type,
+            float topOffset,
+            float material
     ) {
+
+        FaceAO ao = calculateTopFaceAO(
+                world,
+                x,
+                y,
+                z
+        );
+
         addFace(
-                x - 0.5f, y + 0.5f, z - 0.5f,
-                x - 0.5f, y + 0.5f, z + 0.5f,
-                x + 0.5f, y + 0.5f, z + 0.5f,
-                x + 0.5f, y + 0.5f, z - 0.5f,
-                type.getTextureForFace(BlockFace.TOP)
+                x - 0.5f, y + topOffset, z - 0.5f,
+                x - 0.5f, y + topOffset, z + 0.5f,
+                x + 0.5f, y + topOffset, z + 0.5f,
+                x + 0.5f, y + topOffset, z - 0.5f,
+                type.getTextureForFace(BlockFace.TOP),
+                ao,
+                material
         );
     }
 
     private void addBottomFace(
             World world,
-            float x,
-            float y,
-            float z,
-            BlockType type
+            int x,
+            int y,
+            int z,
+            BlockType type,
+            float material
     ) {
+
+        FaceAO ao = calculateBackFaceAO(
+                world,
+                x,
+                y,
+                z
+        );
         addFace(
                 x - 0.5f, y - 0.5f, z + 0.5f,
                 x - 0.5f, y - 0.5f, z - 0.5f,
                 x + 0.5f, y - 0.5f, z - 0.5f,
                 x + 0.5f, y - 0.5f, z + 0.5f,
-                type.getTextureForFace(BlockFace.BOTTOM)
+                type.getTextureForFace(BlockFace.BOTTOM),
+                ao,
+                material
         );
     }
 
@@ -376,11 +732,13 @@ public class ChunkMeshBuilder {
             float x2, float y2, float z2,
             float x3, float y3, float z3,
             float x4, float y4, float z4,
-            AtlasTile tile
+            AtlasTile tile,
+            FaceAO ao,
+            float material
     ) {
         faceCount++;
         int firstVertexIndex =
-                vertices.size() / 6;
+                currentVertices.size() / 7;
 
         float tileSize = BlockType.getTileSize();
 
@@ -397,40 +755,64 @@ public class ChunkMeshBuilder {
                 x1, y1, z1,
                 atlasX,
                 atlasY,
-                1f
+                ao.vertex1,
+                material
         );
 
         addVertex(
                 x2, y2, z2,
                 atlasX,
                 atlasY + tileSize,
-                1f
+                ao.vertex2,
+                material
         );
 
         addVertex(
                 x3, y3, z3,
                 atlasX + tileSize,
                 atlasY + tileSize,
-                1f
+                ao.vertex3,
+                material
         );
 
         addVertex(
                 x4, y4, z4,
                 atlasX + tileSize,
                 atlasY,
-                1f
+                ao.vertex4,
+                material
         );
 
         /*
-         * Two triangles forming one square face.
+         * Choose the diagonal that produces the smoothest
+         * interpolation between AO values.
          */
-        indices.add(firstVertexIndex);
-        indices.add(firstVertexIndex + 1);
-        indices.add(firstVertexIndex + 2);
+        if (ao.vertex1() + ao.vertex3() >
+                ao.vertex2() + ao.vertex4()) {
 
-        indices.add(firstVertexIndex + 2);
-        indices.add(firstVertexIndex + 3);
-        indices.add(firstVertexIndex);
+            /*
+             * Alternate diagonal: vertex 2 to vertex 4.
+             */
+            currentIndices.add(firstVertexIndex);
+            currentIndices.add(firstVertexIndex + 1);
+            currentIndices.add(firstVertexIndex + 3);
+
+            currentIndices.add(firstVertexIndex + 1);
+            currentIndices.add(firstVertexIndex + 2);
+            currentIndices.add(firstVertexIndex + 3);
+
+        } else {
+
+            /*
+             * Default diagonal: vertex 1 to vertex 3.
+             */
+            currentIndices.add(firstVertexIndex);
+            currentIndices.add(firstVertexIndex + 1);
+            currentIndices.add(firstVertexIndex + 2);
+            currentIndices.add(firstVertexIndex + 2);
+            currentIndices.add(firstVertexIndex + 3);
+            currentIndices.add(firstVertexIndex);
+        }
     }
 
     private void addVertex(
@@ -439,38 +821,59 @@ public class ChunkMeshBuilder {
             float z,
             float u,
             float v,
-            float ao
+            float ao,
+            float material
     )
     {
-        vertices.add(x);
-        vertices.add(y);
-        vertices.add(z);
-
-        vertices.add(u);
-        vertices.add(v);
-
-        vertices.add(ao);
+        currentVertices.add(x);
+        currentVertices.add(y);
+        currentVertices.add(z);
+        currentVertices.add(u);
+        currentVertices.add(v);
+        currentVertices.add(ao);
+        currentVertices.add(material);
     }
 
-    private float[] convertVerticesToArray() {
+    private float[] convertVerticesToArray(
+            List<Float> vertexList
+    ) {
         float[] result =
-                new float[vertices.size()];
+                new float[vertexList.size()];
 
-        for (int i = 0; i < vertices.size(); i++) {
-            result[i] = vertices.get(i);
+        for (int i = 0; i < vertexList.size(); i++) {
+            result[i] = vertexList.get(i);
         }
 
         return result;
     }
 
-    private int[] convertIndicesToArray() {
+    private int[] convertIndicesToArray(
+            List<Integer> indexList
+    ) {
         int[] result =
-                new int[indices.size()];
+                new int[indexList.size()];
 
-        for (int i = 0; i < indices.size(); i++) {
-            result[i] = indices.get(i);
+        for (int i = 0; i < indexList.size(); i++) {
+            result[i] = indexList.get(i);
         }
 
         return result;
+    }
+
+    private Mesh createMesh(
+            List<Float> vertexList,
+            List<Integer> indexList
+    ) {
+        /*
+         * An empty bucket does not need a GPU mesh.
+         */
+        if (indexList.isEmpty()) {
+            return null;
+        }
+
+        return new Mesh(
+                convertVerticesToArray(vertexList),
+                convertIndicesToArray(indexList)
+        );
     }
 }

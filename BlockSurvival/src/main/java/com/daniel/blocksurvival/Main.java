@@ -1,48 +1,37 @@
 package com.daniel.blocksurvival;
 
-import com.daniel.blocksurvival.graphics.BlockOutlineRenderer;
-import com.daniel.blocksurvival.world.BlockType;
-import com.daniel.blocksurvival.world.World;
-import com.daniel.blocksurvival.graphics.Mesh;
-import com.daniel.blocksurvival.graphics.ChunkMeshBuilder;
-import com.daniel.blocksurvival.world.ChunkManager;
-import com.daniel.blocksurvival.world.TerrainGenerator;
-import com.daniel.blocksurvival.world.RaycastResult;
-import org.lwjgl.glfw.GLFWErrorCallback;
-import org.lwjgl.opengl.GL;
+import com.daniel.blocksurvival.graphics.*;
+import com.daniel.blocksurvival.world.*;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
-import java.util.ArrayList;
-import java.util.List;
+import org.lwjgl.glfw.GLFWErrorCallback;
+import org.lwjgl.opengl.GL;
+import org.lwjgl.system.MemoryStack;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import com.daniel.blocksurvival.world.Chunk;
-
-import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL15.*;
-import static org.lwjgl.opengl.GL20.*;
+import static org.lwjgl.opengl.GL15.GL_TEXTURE0;
+import static org.lwjgl.opengl.GL15.glActiveTexture;
 import static org.lwjgl.system.MemoryStack.stackPush;
-
-import com.daniel.blocksurvival.graphics.Texture;
-
-import org.lwjgl.system.MemoryStack;
 
 public class Main {
 
     private long window;
+    private final Hotbar hotbar =
+            new Hotbar();
 
 
     private final ChunkMeshBuilder chunkMeshBuilder =
             new ChunkMeshBuilder();
 
     private final TerrainGenerator terrainGenerator =
-            new TerrainGenerator(33333);
+            new TerrainGenerator(44444);
 
     private boolean removeBlockRequested = false;
 
@@ -51,10 +40,10 @@ public class Main {
     private boolean placeBlockRequested = false;
 
     private Texture atlasTexture;
-    private int shaderProgramId;
-    private int mvpUniformLocation;
-
+    private Shader worldShader;
+    private WorldRenderer worldRenderer;
     private BlockOutlineRenderer outlineRenderer;
+    private UiRenderer uiRenderer;
 
     private RaycastResult currentRaycast;
 
@@ -64,7 +53,7 @@ public class Main {
 
     private final World world = new World();
 
-    private final Map<Chunk, Mesh> chunkMeshes =
+    private final Map<Chunk, ChunkRenderData> chunkMeshes =
             new HashMap<>();
 
     private static final int RENDER_DISTANCE = 2;
@@ -155,6 +144,27 @@ public class Main {
                     ) {
                         removeBlockRequested = true;
                     }
+
+                    if (action == GLFW_PRESS) {
+                        if (
+                                key >= GLFW_KEY_1 &&
+                                        key <= GLFW_KEY_9
+                        ) {
+                            int slotNumber =
+                                    key - GLFW_KEY_1 + 1;
+
+                            hotbar.selectSlot(
+                                    slotNumber
+                            );
+
+                            System.out.println(
+                                    "Selected hotbar slot " +
+                                            slotNumber +
+                                            ": " +
+                                            hotbar.getSelectedBlock()
+                            );
+                        }
+                    }
                 }
         );
 
@@ -174,6 +184,22 @@ public class Main {
                     ) {
                         placeBlockRequested = true;
                     }
+                }
+        );
+
+        glfwSetScrollCallback(
+                window,
+                (windowHandle, horizontalOffset, verticalOffset) -> {
+                    hotbar.scroll(
+                            verticalOffset
+                    );
+
+                    System.out.println(
+                            "Selected hotbar slot " +
+                                    (hotbar.getSelectedIndex() + 1) +
+                                    ": " +
+                                    hotbar.getSelectedBlock()
+                    );
                 }
         );
 
@@ -272,6 +298,16 @@ public class Main {
         atlasTexture = new Texture(
                 "src/main/resources/textures/block_atlas.png"
         );
+
+        worldRenderer =
+                new WorldRenderer(
+                        worldShader,
+                        atlasTexture
+                );
+        uiRenderer =
+                new UiRenderer(
+                        atlasTexture
+                );
 
 
     }
@@ -405,11 +441,11 @@ public class Main {
          * Destroy the GPU mesh and remove the chunk data.
          */
         for (Chunk chunk : chunksToUnload) {
-            Mesh mesh =
+            ChunkRenderData renderData =
                     chunkMeshes.remove(chunk);
 
-            if (mesh != null) {
-                mesh.destroy();
+            if (renderData != null) {
+                renderData.destroy();
             }
 
             world.removeChunk(
@@ -439,8 +475,8 @@ public class Main {
         /*
          * Destroy every old GPU mesh.
          */
-        for (Mesh mesh : chunkMeshes.values()) {
-            mesh.destroy();
+        for (ChunkRenderData renderData : chunkMeshes.values()) {
+            renderData.destroy();
         }
 
         chunkMeshes.clear();
@@ -449,13 +485,13 @@ public class Main {
          * Build one mesh for every loaded chunk.
          */
         for (Chunk chunk : world.getChunks()) {
-            Mesh mesh =
+            ChunkRenderData renderData =
                     chunkMeshBuilder.build(
                             world,
                             chunk
                     );
 
-            chunkMeshes.put(chunk, mesh);
+            chunkMeshes.put(chunk, renderData);
         }
 
         System.out.println(
@@ -572,7 +608,7 @@ public class Main {
             return;
         }
 
-        Mesh oldMesh =
+        ChunkRenderData oldMesh =
                 chunkMeshes.remove(chunk);
 
         if (oldMesh != null) {
@@ -583,7 +619,7 @@ public class Main {
             return;
         }
 
-        Mesh newMesh =
+        ChunkRenderData newMesh =
                 chunkMeshBuilder.build(
                         world,
                         chunk
@@ -604,12 +640,14 @@ public class Main {
         layout (location = 0) in vec3 position;
         layout (location = 1) in vec2 textureCoordinate;
         layout (location = 2) in float ambientOcclusion;
+        layout (location = 3) in float material;
 
         uniform mat4 mvpMatrix;
 
         out vec2 fragmentTextureCoordinate;
         out vec3 fragmentWorldPosition;
         out float fragmentAO;
+        out float fragmentMaterial;
 
         void main() {
             gl_Position =
@@ -619,47 +657,137 @@ public class Main {
             fragmentTextureCoordinate =
                     textureCoordinate;
             
-            fragmentAO = ambientOcclusion;
+            fragmentAO =
+        ambientOcclusion;
 
-            fragmentWorldPosition =
-                    position;
+        fragmentMaterial =
+             material;
+
+        fragmentWorldPosition =
+              position;
         }
         """;
 
         String fragmentShaderSource = """
         #version 330 core
-
+        
         in vec2 fragmentTextureCoordinate;
         in vec3 fragmentWorldPosition;
         in float fragmentAO;
-
+        in float fragmentMaterial;
+        
         uniform sampler2D blockTexture;
+        uniform vec3 cameraPosition;
+        uniform vec3 fogColor;
+        uniform float fogStart;
+        uniform float fogEnd;
 
+        uniform float animationTime;
+        uniform float atlasTileSize;
+        
         out vec4 finalColor;
-
+        
         void main() {
-            vec4 textureColor =
-                    texture(
-                            blockTexture,
-                            fragmentTextureCoordinate
-                    );
+            vec2 animatedTextureCoordinate =
+        fragmentTextureCoordinate;
 
+/*
+ * Material 1.0 represents water.
+ */
+if (fragmentMaterial > 0.5) {
+    /*
+     * Determine which atlas tile this UV belongs to.
+     *
+     * The tiny subtraction prevents coordinates lying directly
+     * on a tile's upper edge from being mistaken for the next tile.
+     */
+    vec2 tileOrigin =
+            floor(
+                    (
+                            fragmentTextureCoordinate -
+                            vec2(0.00001)
+                    ) /
+                    atlasTileSize
+            ) *
+            atlasTileSize;
+
+    /*
+     * Convert the atlas UV into coordinates ranging from
+     * 0.0 to 1.0 inside this individual tile.
+     */
+    vec2 localTextureCoordinate =
+            (
+                    fragmentTextureCoordinate -
+                    tileOrigin
+            ) /
+            atlasTileSize;
+
+    /*
+     * Scroll slowly in two directions.
+     */
+    vec2 waterMovement =
+            vec2(
+                    animationTime * 0.025,
+                    animationTime * 0.012
+            );
+
+    /*
+     * Add a small ripple so the movement is not merely
+     * a perfectly straight conveyor belt.
+     */
+    float rippleX =
+            sin(
+                    localTextureCoordinate.y * 12.0 +
+                    animationTime * 1.4
+            ) * 0.012;
+
+    float rippleY =
+            cos(
+                    localTextureCoordinate.x * 10.0 +
+                    animationTime * 1.1
+            ) * 0.008;
+
+    localTextureCoordinate +=
+            waterMovement +
+            vec2(
+                    rippleX,
+                    rippleY
+            );
+
+    /*
+     * Wrap inside this tile instead of drifting into
+     * neighboring atlas textures.
+     */
+    localTextureCoordinate =
+            fract(
+                    localTextureCoordinate
+            );
+
+    animatedTextureCoordinate =
+            tileOrigin +
+            localTextureCoordinate *
+            atlasTileSize;
+}
+
+vec4 textureColor =
+        texture(
+                blockTexture,
+                animatedTextureCoordinate
+        );
+        
             if (textureColor.a < 0.5) {
                 discard;
             }
-
+        
             /*
              * Calculate the direction the current face points.
-             *
-             * dFdx and dFdy measure how the world position changes
-             * across neighboring pixels.
              */
             vec3 positionChangeX =
                     dFdx(fragmentWorldPosition);
-
+        
             vec3 positionChangeY =
                     dFdy(fragmentWorldPosition);
-
+        
             vec3 normal =
                     normalize(
                             cross(
@@ -667,19 +795,11 @@ public class Main {
                                     positionChangeY
                             )
                     );
-
-            /*
-             * Cross-model plants are visible from both sides.
-             * Flip the normal when viewing the back side so it
-             * receives sensible lighting too.
-             */
+        
             if (!gl_FrontFacing) {
                 normal = -normal;
             }
-
-            /*
-             * Direction pointing toward the sun.
-             */
+        
             vec3 sunDirection =
                     normalize(
                             vec3(
@@ -688,117 +808,69 @@ public class Main {
                                     0.4
                             )
                     );
-
+        
             float sunlight =
                     max(
                             dot(normal, sunDirection),
                             0.0
                     );
-
-            /*
-             * Ambient light prevents faces pointing away from
-             * the sun from becoming completely black.
-             */
+        
             float ambientLight = 0.45;
-
+        
             float brightness =
                     ambientLight +
                     sunlight * 0.55;
-
+        
+            vec3 litColor =
+                    textureColor.rgb *
+                    brightness *
+                    fragmentAO;
+        
+            float distanceFromCamera =
+                    length(
+                            fragmentWorldPosition -
+                            cameraPosition
+                    );
+        
+            float fogFactor =
+                    clamp(
+                            (fogEnd - distanceFromCamera) /
+                            (fogEnd - fogStart),
+                            0.0,
+                            1.0
+                    );
+        
+            vec3 foggedColor =
+                    mix(
+                            fogColor,
+                            litColor,
+                            fogFactor
+                    );
+        
             finalColor =
                     vec4(
-                            textureColor.rgb *
-                            brightness *
-                            fragmentAO,
+                            foggedColor,
                             textureColor.a
                     );
         }
         """;
+        worldShader =
+                new Shader(
+                        vertexShaderSource,
+                        fragmentShaderSource
+                );
 
-        int vertexShaderId = compileShader(
-                GL_VERTEX_SHADER,
-                vertexShaderSource
+        worldShader.bind();
+
+        worldShader.setInt(
+                "blockTexture",
+                0
         );
 
-        int fragmentShaderId = compileShader(
-                GL_FRAGMENT_SHADER,
-                fragmentShaderSource
-        );
-
-        shaderProgramId = glCreateProgram();
-
-        glAttachShader(shaderProgramId, vertexShaderId);
-        glAttachShader(shaderProgramId, fragmentShaderId);
-
-        glLinkProgram(shaderProgramId);
-
-        if (glGetProgrami(shaderProgramId, GL_LINK_STATUS) == GL_FALSE) {
-            String error = glGetProgramInfoLog(shaderProgramId);
-
-            throw new RuntimeException(
-                    "Could not link shader program:\n" + error
-            );
-        }
-
-        /*
-         * The finished program contains copies of the compiled shaders,
-         * so the individual shader objects can now be deleted.
-         */
-        glDetachShader(shaderProgramId, vertexShaderId);
-        glDetachShader(shaderProgramId, fragmentShaderId);
-
-        glDeleteShader(vertexShaderId);
-        glDeleteShader(fragmentShaderId);
-        mvpUniformLocation = glGetUniformLocation(
-                shaderProgramId,
-                "mvpMatrix"
-        );
-
-
-
-        int textureUniformLocation = glGetUniformLocation(
-                shaderProgramId,
-                "blockTexture"
-        );
-
-        if (textureUniformLocation == -1) {
-            throw new RuntimeException(
-                    "Could not find the blockTexture shader uniform."
-            );
-        }
-
-        glUseProgram(shaderProgramId);
-
-        /*
-         * Texture unit zero will contain our block texture.
-         */
-        glUniform1i(textureUniformLocation, 0);
-
-        glUseProgram(0);
-
-        if (mvpUniformLocation == -1) {
-            throw new RuntimeException(
-                    "Could not find the mvpMatrix shader uniform."
-            );
-        }
+        worldShader.unbind();
     }
 
-    private int compileShader(int shaderType, String source) {
-        int shaderId = glCreateShader(shaderType);
 
-        glShaderSource(shaderId, source);
-        glCompileShader(shaderId);
-
-        if (glGetShaderi(shaderId, GL_COMPILE_STATUS) == GL_FALSE) {
-            String error = glGetShaderInfoLog(shaderId);
-
-            throw new RuntimeException(
-                    "Could not compile shader:\n" + error
-            );
-        }
-
-        return shaderId;
-    }
 
     private void processInput() {
         float cameraSpeed = 9.0f * deltaTime;
@@ -889,7 +961,9 @@ public class Main {
                 currentRaycast.placementZ();
 
         System.out.println(
-                "Placing block at: " +
+                "Placing " +
+                        hotbar.getSelectedBlock() +
+                        " at: " +
                         placementX + ", " +
                         placementY + ", " +
                         placementZ
@@ -907,11 +981,14 @@ public class Main {
             return;
         }
 
+        BlockType selectedBlock =
+                hotbar.getSelectedBlock();
+
         world.setBlock(
                 placementX,
                 placementY,
                 placementZ,
-                BlockType.GRASS
+                selectedBlock
         );
 
         rebuildChunksAroundBlock(
@@ -1134,6 +1211,7 @@ public class Main {
              */
 
 
+
             /*
              * VIEW:
              * Represents the camera.
@@ -1165,34 +1243,15 @@ public class Main {
              *
              * The multiplication order matters.
              */
-            glUseProgram(shaderProgramId);
 
-            glActiveTexture(GL_TEXTURE0);
-            atlasTexture.bind();
-
-            Matrix4f mvpMatrix =
-                    new Matrix4f(projectionMatrix)
-                            .mul(viewMatrix);
-
-            try (MemoryStack stack = MemoryStack.stackPush()) {
-                FloatBuffer matrixBuffer =
-                        stack.mallocFloat(16);
-
-                mvpMatrix.get(matrixBuffer);
-
-                glUniformMatrix4fv(
-                        mvpUniformLocation,
-                        false,
-                        matrixBuffer
-                );
-            }
-
-            for (Mesh mesh : chunkMeshes.values()) {
-                mesh.render();
-            }
-
-            atlasTexture.unbind();
-            glUseProgram(0);
+            worldRenderer.render(
+                    projectionMatrix,
+                    viewMatrix,
+                    camera,
+                    world,
+                    chunkMeshes,
+                    deltaTime
+            );
 
             if (currentRaycast != null) {
                 outlineRenderer.render(
@@ -1203,6 +1262,11 @@ public class Main {
                         viewMatrix
                 );
             }
+            uiRenderer.render(
+                    hotbar,
+                    framebufferWidth,
+                    framebufferHeight
+            );
 
             glfwSwapBuffers(window);
             glfwPollEvents();
@@ -1210,16 +1274,21 @@ public class Main {
     }
 
     private void cleanup() {
-        glDeleteProgram(shaderProgramId);
+        if (worldShader != null) {
+            worldShader.destroy();
+        }
 
-        for (Mesh mesh : chunkMeshes.values()) {
-            mesh.destroy();
+        for (ChunkRenderData renderData : chunkMeshes.values()) {
+            renderData.destroy();
         }
 
         chunkMeshes.clear();
 
         atlasTexture.destroy();
 
+        if (uiRenderer != null) {
+            uiRenderer.cleanup();
+        }
         glfwDestroyWindow(window);
         glfwTerminate();
 
