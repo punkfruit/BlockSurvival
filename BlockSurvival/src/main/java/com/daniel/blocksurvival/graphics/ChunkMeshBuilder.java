@@ -1,7 +1,7 @@
 package com.daniel.blocksurvival.graphics;
 
 import com.daniel.blocksurvival.world.*;
-
+import com.daniel.blocksurvival.graphics.RenderMaterial;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -419,10 +419,23 @@ public class ChunkMeshBuilder {
                 hasWaterAbove
                         ? 0.5f
                         : topOffset;
-        float material =
-                type == BlockType.WATER
-                        ? 1.0f
-                        : 0.0f;
+        RenderMaterial material;
+
+        if (type == BlockType.WATER) {
+
+            material = RenderMaterial.WATER;
+
+        }
+        else if (type == BlockType.LEAVES) {
+
+            material = RenderMaterial.LEAVES;
+
+        }
+        else {
+
+            material = RenderMaterial.DEFAULT;
+
+        }
         if (shouldRenderFace(
                 world,
                 worldX,
@@ -547,7 +560,11 @@ public class ChunkMeshBuilder {
                 x + 0.5f, y + 0.5f, z + 0.5f,
                 type.getSideTexture(),
                 FaceAO.FULL_BRIGHT,
-                0.0f
+                RenderMaterial.FOLIAGE,
+                1.0f,
+                0.0f,
+                0.0f,
+                1.0f
         );
 
         /*
@@ -560,7 +577,11 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y + 0.5f, z + 0.5f,
                 type.getSideTexture(),
                 FaceAO.FULL_BRIGHT,
-                0.0f
+                RenderMaterial.FOLIAGE,
+                1.0f,
+                0.0f,
+                0.0f,
+                1.0f
         );
 
     }
@@ -572,7 +593,7 @@ public class ChunkMeshBuilder {
             int z,
             BlockType type,
             float topOffset,
-            float material
+            RenderMaterial material
     ) {
         FaceAO ao = calculateFrontFaceAO(
                 world,
@@ -588,7 +609,11 @@ public class ChunkMeshBuilder {
                 x + 0.5f, y + topOffset, z + 0.5f,
                 type.getTextureForFace(BlockFace.NORTH),
                 ao,
-                material
+                material,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f
         );
     }
 
@@ -599,7 +624,7 @@ public class ChunkMeshBuilder {
             int z,
             BlockType type,
             float topOffset,
-            float material
+            RenderMaterial material
     ) {
         FaceAO ao = calculateBackFaceAO(
                 world,
@@ -615,7 +640,11 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y + topOffset, z - 0.5f,
                 type.getTextureForFace(BlockFace.SOUTH),
                 ao,
-                material
+                material,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f
         );
     }
 
@@ -626,7 +655,7 @@ public class ChunkMeshBuilder {
             int z,
             BlockType type,
             float topOffset,
-            float material
+            RenderMaterial material
     ) {
 
         FaceAO ao = calculateLeftFaceAO(
@@ -642,7 +671,11 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y + topOffset, z + 0.5f,
                 type.getTextureForFace(BlockFace.WEST),
                 ao,
-                material
+                material,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f
         );
     }
 
@@ -653,7 +686,7 @@ public class ChunkMeshBuilder {
             int z,
             BlockType type,
             float topOffset,
-            float material
+            RenderMaterial material
     ) {
 
         FaceAO ao = calculateRightFaceAO(
@@ -669,7 +702,11 @@ public class ChunkMeshBuilder {
                 x + 0.5f, y + topOffset, z - 0.5f,
                 type.getTextureForFace(BlockFace.EAST),
                 ao,
-                material
+                material,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f
         );
     }
 
@@ -680,7 +717,7 @@ public class ChunkMeshBuilder {
             int z,
             BlockType type,
             float topOffset,
-            float material
+            RenderMaterial material
     ) {
 
         FaceAO ao = calculateTopFaceAO(
@@ -697,7 +734,11 @@ public class ChunkMeshBuilder {
                 x + 0.5f, y + topOffset, z - 0.5f,
                 type.getTextureForFace(BlockFace.TOP),
                 ao,
-                material
+                material,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f
         );
     }
 
@@ -707,7 +748,7 @@ public class ChunkMeshBuilder {
             int y,
             int z,
             BlockType type,
-            float material
+            RenderMaterial material
     ) {
 
         FaceAO ao = calculateBackFaceAO(
@@ -723,7 +764,11 @@ public class ChunkMeshBuilder {
                 x + 0.5f, y - 0.5f, z + 0.5f,
                 type.getTextureForFace(BlockFace.BOTTOM),
                 ao,
-                material
+                material,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f
         );
     }
 
@@ -734,11 +779,15 @@ public class ChunkMeshBuilder {
             float x4, float y4, float z4,
             AtlasTile tile,
             FaceAO ao,
-            float material
+            RenderMaterial material,
+            float bend1,
+            float bend2,
+            float bend3,
+            float bend4
     ) {
         faceCount++;
         int firstVertexIndex =
-                currentVertices.size() / 7;
+                currentVertices.size() / 8;
 
         float tileSize = BlockType.getTileSize();
 
@@ -756,7 +805,8 @@ public class ChunkMeshBuilder {
                 atlasX,
                 atlasY,
                 ao.vertex1,
-                material
+                material,
+                bend1
         );
 
         addVertex(
@@ -764,7 +814,7 @@ public class ChunkMeshBuilder {
                 atlasX,
                 atlasY + tileSize,
                 ao.vertex2,
-                material
+                material,bend2
         );
 
         addVertex(
@@ -772,7 +822,7 @@ public class ChunkMeshBuilder {
                 atlasX + tileSize,
                 atlasY + tileSize,
                 ao.vertex3,
-                material
+                material,bend3
         );
 
         addVertex(
@@ -780,7 +830,7 @@ public class ChunkMeshBuilder {
                 atlasX + tileSize,
                 atlasY,
                 ao.vertex4,
-                material
+                material,bend4
         );
 
         /*
@@ -822,7 +872,8 @@ public class ChunkMeshBuilder {
             float u,
             float v,
             float ao,
-            float material
+            RenderMaterial material,
+            float bendWeight
     )
     {
         currentVertices.add(x);
@@ -831,7 +882,8 @@ public class ChunkMeshBuilder {
         currentVertices.add(u);
         currentVertices.add(v);
         currentVertices.add(ao);
-        currentVertices.add(material);
+        currentVertices.add(material.getId());
+        currentVertices.add(bendWeight);
     }
 
     private float[] convertVerticesToArray(

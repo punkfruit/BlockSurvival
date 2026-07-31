@@ -82,39 +82,109 @@ public class ChunkManager {
             int worldZ,
             BlockType type
     ) {
-        int chunkX = Math.floorDiv(worldX, Chunk.SIZE);
-        int chunkY = Math.floorDiv(worldY, Chunk.SIZE);
-        int chunkZ = Math.floorDiv(worldZ, Chunk.SIZE);
-
-        int localX = Math.floorMod(worldX, Chunk.SIZE);
-        int localY = Math.floorMod(worldY, Chunk.SIZE);
-        int localZ = Math.floorMod(worldZ, Chunk.SIZE);
-
-        Chunk chunk = getChunk(
-                chunkX,
-                chunkY,
-                chunkZ
+        setBlockInternal(
+                worldX,
+                worldY,
+                worldZ,
+                type,
+                true
         );
+    }
 
-        /*
-         * If no chunk exists here yet, create one.
-         */
+    public void setGeneratedBlock(
+            int worldX,
+            int worldY,
+            int worldZ,
+            BlockType type
+    ) {
+        setBlockInternal(
+                worldX,
+                worldY,
+                worldZ,
+                type,
+                false
+        );
+    }
+
+    private void setBlockInternal(
+            int worldX,
+            int worldY,
+            int worldZ,
+            BlockType type,
+            boolean markDirty
+    ) {
+        int chunkX =
+                Math.floorDiv(
+                        worldX,
+                        Chunk.SIZE
+                );
+
+        int chunkY =
+                Math.floorDiv(
+                        worldY,
+                        Chunk.SIZE
+                );
+
+        int chunkZ =
+                Math.floorDiv(
+                        worldZ,
+                        Chunk.SIZE
+                );
+
+        int localX =
+                Math.floorMod(
+                        worldX,
+                        Chunk.SIZE
+                );
+
+        int localY =
+                Math.floorMod(
+                        worldY,
+                        Chunk.SIZE
+                );
+
+        int localZ =
+                Math.floorMod(
+                        worldZ,
+                        Chunk.SIZE
+                );
+
+        Chunk chunk =
+                getChunk(
+                        chunkX,
+                        chunkY,
+                        chunkZ
+                );
+
         if (chunk == null) {
-            chunk = new Chunk(
-                    chunkX,
-                    chunkY,
-                    chunkZ
-            );
+            chunk =
+                    new Chunk(
+                            chunkX,
+                            chunkY,
+                            chunkZ
+                    );
 
-            addChunk(chunk);
+            addChunk(
+                    chunk
+            );
         }
 
-        chunk.setBlock(
-                localX,
-                localY,
-                localZ,
-                type
-        );
+        if (markDirty) {
+            chunk.setBlock(
+                    localX,
+                    localY,
+                    localZ,
+                    type
+            );
+        }
+        else {
+            chunk.setGeneratedBlock(
+                    localX,
+                    localY,
+                    localZ,
+                    type
+            );
+        }
     }
 
     public BlockType getBlock(

@@ -569,12 +569,21 @@ public class Camera {
             pitch = -89.0f;
         }
 
-        Vector3f newDirection = new Vector3f();
+        updateFrontDirection();
+    }
+
+    private void updateFrontDirection() {
+        Vector3f newDirection =
+                new Vector3f();
 
         newDirection.x =
                 (float) (
-                        Math.cos(Math.toRadians(yaw))
-                                * Math.cos(Math.toRadians(pitch))
+                        Math.cos(
+                                Math.toRadians(yaw)
+                        ) *
+                                Math.cos(
+                                        Math.toRadians(pitch)
+                                )
                 );
 
         newDirection.y =
@@ -584,11 +593,17 @@ public class Camera {
 
         newDirection.z =
                 (float) (
-                        Math.sin(Math.toRadians(yaw))
-                                * Math.cos(Math.toRadians(pitch))
+                        Math.sin(
+                                Math.toRadians(yaw)
+                        ) *
+                                Math.cos(
+                                        Math.toRadians(pitch)
+                                )
                 );
 
-        front.set(newDirection).normalize();
+        front.set(
+                newDirection
+        ).normalize();
     }
 
     private Vector3f getHorizontalForward() {
@@ -720,5 +735,53 @@ public class Camera {
 
                 playerMaxZ > blockMinZ &&
                 playerMinZ < blockMaxZ;
+    }
+    public float getYaw() {
+        return yaw;
+    }
+
+    public float getPitch() {
+        return pitch;
+    }
+
+    public void setPosition(
+            float x,
+            float y,
+            float z
+    ) {
+        position.set(
+                x,
+                y,
+                z
+        );
+
+        /*
+         * Prevent old falling or jumping velocity from carrying
+         * over after loading.
+         */
+        verticalVelocity = 0.0f;
+
+        requestedMovement.zero();
+
+        grounded = false;
+        jumpRequested = false;
+    }
+
+    public void setRotation(
+            float newYaw,
+            float newPitch
+    ) {
+        yaw = newYaw;
+
+        pitch =
+                Math.max(
+                        -89.0f,
+                        Math.min(
+                                89.0f,
+                                newPitch
+                        )
+                );
+
+        updateFrontDirection();
     }
 }

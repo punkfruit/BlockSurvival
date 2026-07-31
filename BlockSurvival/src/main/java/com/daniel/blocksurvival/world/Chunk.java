@@ -19,6 +19,9 @@ public class Chunk {
     private final int chunkY;
     private final int chunkZ;
 
+    private boolean dirty = false;
+    private boolean generated = false;
+
     public Chunk(
             int chunkX,
             int chunkY,
@@ -37,11 +40,50 @@ public class Chunk {
             int localZ,
             BlockType type
     ) {
+        setBlockInternal(
+                localX,
+                localY,
+                localZ,
+                type,
+                true
+        );
+    }
+
+    public void setGeneratedBlock(
+            int localX,
+            int localY,
+            int localZ,
+            BlockType type
+    ) {
+        setBlockInternal(
+                localX,
+                localY,
+                localZ,
+                type,
+                false
+        );
+    }
+
+    private void setBlockInternal(
+            int localX,
+            int localY,
+            int localZ,
+            BlockType type,
+            boolean markDirty
+    ) {
         if (!isInsideChunk(localX, localY, localZ)) {
             return;
         }
 
+        if (blocks[localX][localY][localZ] == type) {
+            return;
+        }
+
         blocks[localX][localY][localZ] = type;
+
+        if (markDirty) {
+            dirty = true;
+        }
     }
 
     public BlockType getBlock(
@@ -113,5 +155,25 @@ public class Chunk {
         }
 
         return true;
+    }
+
+    public boolean isDirty() {
+        return dirty;
+    }
+
+    public void markDirty() {
+        dirty = true;
+    }
+
+    public void clearDirty() {
+        dirty = false;
+    }
+
+    public boolean isGenerated() {
+        return generated;
+    }
+
+    public void setGenerated(boolean generated) {
+        this.generated = generated;
     }
 }

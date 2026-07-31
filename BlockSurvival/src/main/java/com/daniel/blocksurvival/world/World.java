@@ -2,6 +2,7 @@ package com.daniel.blocksurvival.world;
 
 public class World {
 
+
     private final ChunkManager chunkManager =
             new ChunkManager();
 
@@ -12,6 +13,20 @@ public class World {
             BlockType type
     ) {
         chunkManager.setBlock(
+                worldX,
+                worldY,
+                worldZ,
+                type
+        );
+    }
+
+    public void setGeneratedBlock(
+            int worldX,
+            int worldY,
+            int worldZ,
+            BlockType type
+    ) {
+        chunkManager.setGeneratedBlock(
                 worldX,
                 worldY,
                 worldZ,

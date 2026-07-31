@@ -1,11 +1,20 @@
 package com.daniel.blocksurvival.world;
 
 import com.daniel.blocksurvival.world.noise.ValueNoise;
+import com.daniel.blocksurvival.world.noise.ValueNoise3D;
 
 public class TerrainGenerator {
 
     private final ValueNoise terrainNoise;
     private final ValueNoise biomeNoise;
+    private final ValueNoise3D caveNoise;
+
+    private final ValueNoise3D tunnelNoiseA;
+    private final ValueNoise3D tunnelNoiseB;
+
+    private final ValueNoise3D shaftNoiseA;
+    private final ValueNoise3D shaftNoiseB;
+    private final ValueNoise3D shaftPlacementNoise;
 
     private static final float DESERT_FOREST_BORDER = 0.33f;
     private static final float FOREST_SNOW_BORDER = 0.66f;
@@ -29,28 +38,57 @@ public class TerrainGenerator {
 
         biomeNoise =
                 new ValueNoise(seed + 1000);
+        caveNoise =
+                new ValueNoise3D(seed + 2000);
+        tunnelNoiseA =
+                new ValueNoise3D(seed + 3000);
+
+        tunnelNoiseB =
+                new ValueNoise3D(seed + 4000);
+        shaftNoiseA =
+                new ValueNoise3D(seed + 5000);
+
+        shaftNoiseB =
+                new ValueNoise3D(seed + 6000);
+
+        shaftPlacementNoise =
+                new ValueNoise3D(seed + 7000);
     }
 
     public void generateChunk(
             World world,
             Chunk chunk
     ) {
-        printChunkBiome(chunk);
+        /*
+         * Only print the biome once for each horizontal chunk
+         * column rather than once for every vertical layer.
+         */
+        if (chunk.getChunkY() == 0) {
+            printChunkBiome(chunk);
+        }
 
         generateTerrain(
                 world,
                 chunk
         );
 
-        generateDecorations(
-                world,
-                chunk
-        );
+        /*
+         * Surface decorations and structures are generated only
+         * by the surface chunk.
+         */
+        if (chunk.getChunkY() == 0) {
+            generateDecorations(
+                    world,
+                    chunk
+            );
 
-        generateStructures(
-                world,
-                chunk
-        );
+            generateStructures(
+                    world,
+                    chunk
+            );
+        }
+
+        chunk.setGenerated(true);
     }
     private void generateTerrain(
             World world,
@@ -59,8 +97,16 @@ public class TerrainGenerator {
         int chunkOriginX =
                 chunk.getWorldOriginX();
 
+        int chunkOriginY =
+                chunk.getWorldOriginY();
+
         int chunkOriginZ =
                 chunk.getWorldOriginZ();
+
+        int chunkMaximumY =
+                chunkOriginY +
+                        Chunk.SIZE -
+                        1;
 
         for (int localX = 0;
              localX < Chunk.SIZE;
@@ -79,7 +125,9 @@ public class TerrainGenerator {
                 generateTerrainColumn(
                         world,
                         worldX,
-                        worldZ
+                        worldZ,
+                        chunkOriginY,
+                        chunkMaximumY
                 );
             }
         }
@@ -87,7 +135,9 @@ public class TerrainGenerator {
     private void generateTerrainColumn(
             World world,
             int worldX,
-            int worldZ
+            int worldZ,
+            int minimumY,
+            int maximumY
     ) {
         int terrainHeight =
                 getTerrainHeight(
@@ -107,8 +157,20 @@ public class TerrainGenerator {
                         worldZ
                 );
 
-        for (int y = 0;
-             y <= terrainHeight;
+        int columnMinimumY =
+                Math.max(
+                        minimumY,
+                        WorldGenerationSettings.MIN_WORLD_Y
+                );
+
+        int columnMaximumY =
+                Math.min(
+                        maximumY,
+                        terrainHeight
+                );
+
+        for (int y = columnMinimumY;
+             y <= columnMaximumY;
              y++) {
 
             BlockType blockType =
@@ -119,7 +181,41 @@ public class TerrainGenerator {
                             surfaceBlock
                     );
 
-            world.setBlock(
+            if (blockType == BlockType.STONE) {
+                boolean carveChamber =
+                        shouldCarveChamber(
+                                worldX,
+                                y,
+                                worldZ,
+                                terrainHeight
+                        );
+
+                boolean carveTunnel =
+                        shouldCarveTunnel(
+                                worldX,
+                                y,
+                                worldZ,
+                                terrainHeight
+                        );
+
+                boolean carveShaft =
+                        shouldCarveShaft(
+                                worldX,
+                                y,
+                                worldZ,
+                                terrainHeight
+                        );
+
+                if (
+                        carveChamber ||
+                                carveTunnel ||
+                                carveShaft
+                ) {
+                    blockType = null;
+                }
+            }
+
+            world.setGeneratedBlock(
                     worldX,
                     y,
                     worldZ,
@@ -207,7 +303,7 @@ public class TerrainGenerator {
                         worldZ
                 );
 
-        world.setBlock(
+        world.setGeneratedBlock(
                 worldX,
                 terrainHeight + 1,
                 worldZ,
@@ -374,7 +470,7 @@ public class TerrainGenerator {
              offsetY < height;
              offsetY++) {
 
-            world.setBlock(
+            world.setGeneratedBlock(
                     worldX,
                     startY + offsetY,
                     worldZ,
@@ -673,7 +769,7 @@ public class TerrainGenerator {
          * Build the trunk above the grass block.
          */
         for (int y = 1; y <= trunkHeight; y++) {
-            world.setBlock(
+            world.setGeneratedBlock(
                     worldX,
                     groundY + y,
                     worldZ,
@@ -728,7 +824,7 @@ public class TerrainGenerator {
                      * Only place leaves into empty cells.
                      */
                     if (!world.hasBlock(leafX, leafY, leafZ)) {
-                        world.setBlock(
+                        world.setGeneratedBlock(
                                 leafX,
                                 leafY,
                                 leafZ,
@@ -742,11 +838,191 @@ public class TerrainGenerator {
         /*
          * Add one leafy cap above the trunk.
          */
-        world.setBlock(
+        world.setGeneratedBlock(
                 worldX,
                 canopyCenterY + 2,
                 worldZ,
                 BlockType.LEAVES
         );
+    }
+
+    private boolean shouldCarveChamber(
+            int worldX,
+            int worldY,
+            int worldZ,
+            int terrainHeight
+    ) {
+        /*
+         * Keep a solid roof between caves and the surface.
+         */
+        int surfaceProtectionDepth = 5;
+
+        if (worldY >= terrainHeight - surfaceProtectionDepth) {
+            return false;
+        }
+
+        /*
+         * Keep the very bottom solid for now.
+         */
+        if (worldY <= WorldGenerationSettings.MIN_WORLD_Y + 2) {
+            return false;
+        }
+
+        float noiseValue =
+                caveNoise.sampleOctaves(
+                        worldX,
+                        worldY,
+                        worldZ,
+                        2,
+                        0.5f
+                );
+
+        /*
+         * Higher threshold = fewer caves.
+         * Lower threshold = more caves.
+         */
+        return noiseValue > 0.68f;
+    }
+
+    private boolean shouldCarveTunnel(
+            int worldX,
+            int worldY,
+            int worldZ,
+            int terrainHeight
+    ) {
+        /*
+         * Tunnels may approach closer to the surface than large
+         * chambers, but we still leave a small solid roof.
+         */
+        int surfaceProtectionDepth = 3;
+
+        if (worldY >= terrainHeight - surfaceProtectionDepth) {
+            return false;
+        }
+
+        /*
+         * Preserve the bottom few layers of the world.
+         */
+        if (worldY <= WorldGenerationSettings.MIN_WORLD_Y + 2) {
+            return false;
+        }
+
+        /*
+         * Scaling the coordinates upward makes this noise pattern
+         * somewhat tighter than the large chamber noise.
+         */
+        float horizontalScale = 1.20f;
+        float verticalScale = 2.40f;
+
+        float tunnelValueA =
+                tunnelNoiseA.sample(
+                        worldX * horizontalScale,
+                        worldY * verticalScale,
+                        worldZ * horizontalScale
+                );
+
+        float tunnelValueB =
+                tunnelNoiseB.sample(
+                        worldX * horizontalScale,
+                        worldY * verticalScale,
+                        worldZ * horizontalScale
+                );
+
+        /*
+         * Each noise field ranges approximately from 0.0 to 1.0.
+         *
+         * Values close to 0.5 form a thin, winding band.
+         * Requiring both bands at once creates tube-like
+         * intersections rather than giant hollow regions.
+         */
+        float tunnelWidth = 0.075f;
+
+        boolean insideFirstBand =
+                Math.abs(tunnelValueA - 0.5f)
+                        < tunnelWidth;
+
+        boolean insideSecondBand =
+                Math.abs(tunnelValueB - 0.5f)
+                        < tunnelWidth;
+
+        return insideFirstBand &&
+                insideSecondBand;
+    }
+
+    private boolean shouldCarveShaft(
+            int worldX,
+            int worldY,
+            int worldZ,
+            int terrainHeight
+    ) {
+        /*
+         * Keep shafts from immediately breaking through the
+         * surface. Cave entrances will be handled separately.
+         */
+        int surfaceProtectionDepth = 5;
+
+        if (worldY >= terrainHeight - surfaceProtectionDepth) {
+            return false;
+        }
+
+        /*
+         * Preserve the bottom layers of the world.
+         */
+        if (worldY <= WorldGenerationSettings.MIN_WORLD_Y + 2) {
+            return false;
+        }
+
+        /*
+         * Shafts should be uncommon.
+         *
+         * This broad noise field creates large regions where
+         * shafts are either permitted or forbidden.
+         */
+        float placementValue =
+                shaftPlacementNoise.sample(
+                        worldX * 0.30f,
+                        worldY * 0.30f,
+                        worldZ * 0.30f
+                );
+
+        if (placementValue < 0.72f) {
+            return false;
+        }
+
+        /*
+         * These scales do the opposite of the ordinary tunnels.
+         *
+         * X and Z change quickly, creating a narrow cross-section.
+         * Y changes slowly, stretching the shape vertically.
+         */
+        float horizontalScale = 2.20f;
+        float verticalScale = 0.45f;
+
+        float shaftValueA =
+                shaftNoiseA.sample(
+                        worldX * horizontalScale,
+                        worldY * verticalScale,
+                        worldZ * horizontalScale
+                );
+
+        float shaftValueB =
+                shaftNoiseB.sample(
+                        worldX * horizontalScale,
+                        worldY * verticalScale,
+                        worldZ * horizontalScale
+                );
+
+        float shaftWidth = 0.065f;
+
+        boolean insideFirstBand =
+                Math.abs(shaftValueA - 0.5f)
+                        < shaftWidth;
+
+        boolean insideSecondBand =
+                Math.abs(shaftValueB - 0.5f)
+                        < shaftWidth;
+
+        return insideFirstBand &&
+                insideSecondBand;
     }
 }

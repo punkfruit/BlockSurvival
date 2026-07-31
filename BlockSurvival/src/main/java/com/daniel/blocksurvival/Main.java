@@ -16,8 +16,6 @@ import java.util.Map;
 
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL15.GL_TEXTURE0;
-import static org.lwjgl.opengl.GL15.glActiveTexture;
 import static org.lwjgl.system.MemoryStack.stackPush;
 
 public class Main {
@@ -53,10 +51,13 @@ public class Main {
 
     private final World world = new World();
 
+    private final SaveManager saveManager =
+            new SaveManager("World1");
+
     private final Map<Chunk, ChunkRenderData> chunkMeshes =
             new HashMap<>();
 
-    private static final int RENDER_DISTANCE = 2;
+    private static final int RENDER_DISTANCE = 4;
 
     private int lastPlayerChunkX =
             Integer.MIN_VALUE;
@@ -289,6 +290,8 @@ public class Main {
                 1.0f
         );
 
+        loadPlayer();
+
         updateLoadedChunks();
 
         createShaders();
@@ -364,6 +367,11 @@ public class Main {
         /*
          * Generate every missing chunk inside render distance.
          */
+        /*
+         * Load or generate every chunk column inside render distance.
+         *
+         * Each horizontal position now contains several vertical chunks.
+         */
         for (
                 int chunkX =
                 playerChunkX - RENDER_DISTANCE;
@@ -378,20 +386,50 @@ public class Main {
                             playerChunkZ + RENDER_DISTANCE;
                     chunkZ++
             ) {
-                Chunk chunk =
-                        world.getChunk(
-                                chunkX,
-                                0,
-                                chunkZ
-                        );
-
-                if (chunk == null) {
-                    chunk =
-                            world.getOrCreateChunk(
+                for (
+                        int chunkY =
+                        WorldGenerationSettings.MIN_CHUNK_Y;
+                        chunkY <=
+                                WorldGenerationSettings.MAX_CHUNK_Y;
+                        chunkY++
+                ) {
+                    Chunk chunk =
+                            world.getChunk(
                                     chunkX,
-                                    0,
+                                    chunkY,
                                     chunkZ
                             );
+
+                    if (chunk == null) {
+                        chunk =
+                                world.getOrCreateChunk(
+                                        chunkX,
+                                        chunkY,
+                                        chunkZ
+                                );
+                    }
+
+                    /*
+                     * A structure from another chunk may have already
+                     * caused this chunk object to be created.
+                     *
+                     * Therefore, existence alone does not prove that
+                     * the chunk was properly loaded or generated.
+                     */
+                    if (chunk.isGenerated()) {
+                        continue;
+                    }
+
+                    boolean loadedFromDisk =
+                            saveManager.loadChunk(
+                                    chunk
+                            );
+
+                    if (loadedFromDisk) {
+                        chunk.setGenerated(true);
+
+                        continue;
+                    }
 
                     terrainGenerator.generateChunk(
                             world,
@@ -401,6 +439,7 @@ public class Main {
                     System.out.println(
                             "Generated chunk: " +
                                     chunkX + ", " +
+                                    chunkY + ", " +
                                     chunkZ
                     );
                 }
@@ -441,6 +480,16 @@ public class Main {
          * Destroy the GPU mesh and remove the chunk data.
          */
         for (Chunk chunk : chunksToUnload) {
+
+            /*
+             * Only write chunks that actually changed.
+             */
+            if (chunk.isDirty()) {
+                saveManager.saveChunk(
+                        chunk
+                );
+            }
+
             ChunkRenderData renderData =
                     chunkMeshes.remove(chunk);
 
@@ -641,8 +690,15 @@ public class Main {
         layout (location = 1) in vec2 textureCoordinate;
         layout (location = 2) in float ambientOcclusion;
         layout (location = 3) in float material;
+        layout (location = 4) in float bendWeight;
+
+        const float MATERIAL_DEFAULT = 0.0;
+        const float MATERIAL_WATER = 1.0;
+        const float MATERIAL_FOLIAGE = 2.0;
+        const float MATERIAL_LEAVES = 3.0;
 
         uniform mat4 mvpMatrix;
+        uniform float animationTime;
 
         out vec2 fragmentTextureCoordinate;
         out vec3 fragmentWorldPosition;
@@ -650,26 +706,130 @@ public class Main {
         out float fragmentMaterial;
 
         void main() {
+            vec3 animatedPosition =
+                    position;
+
+            /*
+             * Animate foliage vertices while keeping their
+             * bottom vertices anchored to the ground.
+             */
+            if (material == MATERIAL_FOLIAGE) {
+
+                /*
+                 * Creates a broad gust moving diagonally
+                 * across the world.
+                 */
+                float travelingGust =
+                        sin(
+                                position.x * 0.32 +
+                                position.z * 0.24 -
+                                animationTime * 1.5
+                        );
+
+                /*
+                 * Adds smaller local motion so the plants
+                 * do not all move as one rigid wave.
+                 */
+                float localFlutter =
+                        sin(
+                                position.x * 1.7 -
+                                position.z * 1.3 +
+                                animationTime * 2.4
+                        );
+
+                float windStrength =
+                        travelingGust * 0.075 +
+                        localFlutter * 0.025;
+
+                animatedPosition.x +=
+                        windStrength *
+                        bendWeight;
+
+                animatedPosition.z +=
+                        windStrength *
+                        0.45 *
+                        bendWeight;
+            }
+            
+            /*
+                     * Leaves move more subtly than flowers.
+                     *
+                     * This uses world position so the wind appears to roll
+                     * continuously across an entire tree canopy.
+                     */
+                    else if (material == MATERIAL_LEAVES) {
+                
+                        /*
+                         * A broad, slow-moving gust.
+                         */
+                        float canopyGust =
+                                sin(
+                                        position.x * 0.28 +
+                                        position.z * 0.22 -
+                                        animationTime * 0.9
+                                );
+                
+                        /*
+                         * Smaller and quicker motion layered over the gust.
+                         */
+                        float leafFlutter =
+                                sin(
+                                        position.x * 1.3 -
+                                        position.z * 1.1 +
+                                        position.y * 0.7 +
+                                        animationTime * 2.1
+                                );
+                
+                        float leafMovement =
+                                canopyGust * 0.022 + //controls the larger canopy sway.
+                                leafFlutter * 0.008; //controls the little flutter.
+                
+                        /*
+                         * Mostly horizontal movement, with an extremely
+                         * small vertical lift.
+                         */
+                        animatedPosition.x +=
+                                leafMovement;
+                
+                        animatedPosition.z +=
+                                leafMovement * 0.55;
+                
+                        animatedPosition.y +=
+                                leafFlutter * 0.003;
+                    }
+
             gl_Position =
                     mvpMatrix *
-                    vec4(position, 1.0);
+                    vec4(
+                            animatedPosition,
+                            1.0
+                    );
 
             fragmentTextureCoordinate =
                     textureCoordinate;
-            
+
             fragmentAO =
-        ambientOcclusion;
+                    ambientOcclusion;
 
-        fragmentMaterial =
-             material;
+            fragmentMaterial =
+                    material;
 
-        fragmentWorldPosition =
-              position;
+            /*
+             * Lighting and fog must use the animated position,
+             * not the original static position.
+             */
+            fragmentWorldPosition =
+                    animatedPosition;
         }
         """;
 
         String fragmentShaderSource = """
         #version 330 core
+        
+        const float MATERIAL_DEFAULT = 0.0;
+        const float MATERIAL_WATER = 1.0;
+        const float MATERIAL_FOLIAGE = 2.0;
+        const float MATERIAL_LEAVES = 3.0;
         
         in vec2 fragmentTextureCoordinate;
         in vec3 fragmentWorldPosition;
@@ -694,7 +854,7 @@ public class Main {
 /*
  * Material 1.0 represents water.
  */
-if (fragmentMaterial > 0.5) {
+if (fragmentMaterial == MATERIAL_WATER) {
     /*
      * Determine which atlas tile this UV belongs to.
      *
@@ -1272,8 +1432,90 @@ vec4 textureColor =
             glfwPollEvents();
         }
     }
+    private void saveDirtyChunks() {
+        System.out.println(
+                "Saving modified chunks..."
+        );
+
+        int savedChunkCount = 0;
+
+        for (Chunk chunk : world.getChunks()) {
+            if (!chunk.isDirty()) {
+                continue;
+            }
+
+            saveManager.saveChunk(
+                    chunk
+            );
+
+            savedChunkCount++;
+        }
+
+        System.out.println(
+                "Saved " +
+                        savedChunkCount +
+                        " modified chunk(s)."
+        );
+    }
+
+    private void savePlayer() {
+        Vector3f playerPosition =
+                camera.getPosition();
+
+        PlayerSaveData playerData =
+                new PlayerSaveData(
+                        playerPosition.x,
+                        playerPosition.y,
+                        playerPosition.z,
+                        camera.getYaw(),
+                        camera.getPitch(),
+                        hotbar.getSelectedIndex()
+                );
+
+        saveManager.savePlayer(
+                playerData
+        );
+    }
+
+    private void loadPlayer() {
+        PlayerSaveData playerData =
+                saveManager.loadPlayer();
+
+        if (playerData == null) {
+            System.out.println(
+                    "No player save found. Using default spawn."
+            );
+
+            return;
+        }
+
+        camera.setPosition(
+                playerData.positionX(),
+                playerData.positionY(),
+                playerData.positionZ()
+        );
+
+        camera.setRotation(
+                playerData.yaw(),
+                playerData.pitch()
+        );
+
+        hotbar.selectSlot(
+                playerData.selectedHotbarSlot() + 1
+        );
+
+        System.out.println(
+                "Player position: " +
+                        playerData.positionX() + ", " +
+                        playerData.positionY() + ", " +
+                        playerData.positionZ()
+        );
+    }
 
     private void cleanup() {
+        savePlayer();
+        saveDirtyChunks();
+
         if (worldShader != null) {
             worldShader.destroy();
         }

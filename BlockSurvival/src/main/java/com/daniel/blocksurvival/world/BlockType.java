@@ -6,7 +6,7 @@ public enum BlockType {
     STONE(new AtlasTile(2, 0), BlockModel.CUBE, true),
     SAND(new AtlasTile(3, 0), BlockModel.CUBE, true),
     WOOD(new AtlasTile(4, 1), new AtlasTile(4,0),new AtlasTile(4,1), BlockModel.CUBE, true, 0.5f),
-    LEAVES(new AtlasTile(1, 1), BlockModel.CUBE, true),
+    LEAVES(new AtlasTile(1, 1), BlockModel.CUBE, false),
     SNOW(new AtlasTile(3, 1), new AtlasTile(3,1),new AtlasTile(3,1), BlockModel.CUBE, true, 0.5f),
     CACTUS(new AtlasTile(0, 0), new AtlasTile(0,0),new AtlasTile(0,0), BlockModel.CUBE, true, 0.5f),
     FLOWER(new AtlasTile(2, 1), BlockModel.CROSS, false),
