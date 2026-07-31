@@ -20,7 +20,8 @@ public class Chunk {
     private final int chunkZ;
 
     private boolean dirty = false;
-    private boolean generated = false;
+    private volatile ChunkState state =
+            ChunkState.UNGENERATED;
 
     public Chunk(
             int chunkX,
@@ -34,7 +35,7 @@ public class Chunk {
         blocks = new BlockType[SIZE][SIZE][SIZE];
     }
 
-    public void setBlock(
+    public synchronized void setBlock(
             int localX,
             int localY,
             int localZ,
@@ -49,7 +50,7 @@ public class Chunk {
         );
     }
 
-    public void setGeneratedBlock(
+    public synchronized void setGeneratedBlock(
             int localX,
             int localY,
             int localZ,
@@ -86,7 +87,7 @@ public class Chunk {
         }
     }
 
-    public BlockType getBlock(
+    public synchronized BlockType getBlock(
             int localX,
             int localY,
             int localZ
@@ -169,11 +170,23 @@ public class Chunk {
         dirty = false;
     }
 
-    public boolean isGenerated() {
-        return generated;
+    public ChunkState getState() {
+        return state;
     }
 
-    public void setGenerated(boolean generated) {
-        this.generated = generated;
+    public void setState(
+            ChunkState state
+    ) {
+        this.state = state;
+    }
+
+    public boolean hasTerrain() {
+        return switch (state) {
+            case GENERATED,
+                 MESHING,
+                 READY -> true;
+
+            default -> false;
+        };
     }
 }

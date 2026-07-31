@@ -25,11 +25,12 @@ public class Main {
             new Hotbar();
 
 
-    private final ChunkMeshBuilder chunkMeshBuilder =
-            new ChunkMeshBuilder();
+
+
+    private static final int WORLD_SEED = 33333;
 
     private final TerrainGenerator terrainGenerator =
-            new TerrainGenerator(44444);
+            new TerrainGenerator(WORLD_SEED);
 
     private boolean removeBlockRequested = false;
 
@@ -54,10 +55,24 @@ public class Main {
     private final SaveManager saveManager =
             new SaveManager("World1");
 
+    private final ChunkWorker chunkWorker =
+            new ChunkWorker(
+                    world,
+                    terrainGenerator,
+                    saveManager
+            );
+
+    private final ChunkMeshBuilder chunkMeshBuilder =
+            new ChunkMeshBuilder();
+
     private final Map<Chunk, ChunkRenderData> chunkMeshes =
             new HashMap<>();
 
-    private static final int RENDER_DISTANCE = 4;
+    private static final int RENDER_DISTANCE = 20; //goal is 32 or something eventually!
+
+    private static final int FULL_DEPTH_DISTANCE = 4;
+
+    private static final int SHALLOW_DEPTH_DISTANCE = 8;
 
     private int lastPlayerChunkX =
             Integer.MIN_VALUE;
@@ -75,6 +90,8 @@ public class Main {
     private double lastMouseX = 640.0;
     private double lastMouseY = 360.0;
     private boolean firstMouseMovement = true;
+
+    private boolean waitingForPlayerTerrain = true;
 
     private float deltaTime = 0.0f;
     private float previousFrameTime = 0.0f;
@@ -357,12 +374,48 @@ public class Main {
 
         lastPlayerChunkX = playerChunkX;
         lastPlayerChunkZ = playerChunkZ;
+        chunkWorker.updateFocus(
+                playerChunkX,
+                playerChunkZ,
+                RENDER_DISTANCE
+        );
 
         System.out.println(
                 "Player entered chunk: " +
                         playerChunkX + ", " +
                         playerChunkZ
         );
+
+
+        /*
+         * Queue the exact chunk containing the player first.
+         *
+         * This gives the worker the terrain directly around the
+         * saved player position before the rest of the world.
+         */
+        int playerBlockY =
+                (int) Math.floor(
+                        camera.getPosition().y
+                );
+
+        int playerChunkY =
+                Math.floorDiv(
+                        playerBlockY,
+                        Chunk.SIZE
+                );
+
+        queueChunksAroundPlayer(
+                playerChunkX,
+                playerChunkY,
+                playerChunkZ
+        );
+
+
+
+
+
+
+
 
         /*
          * Generate every missing chunk inside render distance.
@@ -372,79 +425,7 @@ public class Main {
          *
          * Each horizontal position now contains several vertical chunks.
          */
-        for (
-                int chunkX =
-                playerChunkX - RENDER_DISTANCE;
-                chunkX <=
-                        playerChunkX + RENDER_DISTANCE;
-                chunkX++
-        ) {
-            for (
-                    int chunkZ =
-                    playerChunkZ - RENDER_DISTANCE;
-                    chunkZ <=
-                            playerChunkZ + RENDER_DISTANCE;
-                    chunkZ++
-            ) {
-                for (
-                        int chunkY =
-                        WorldGenerationSettings.MIN_CHUNK_Y;
-                        chunkY <=
-                                WorldGenerationSettings.MAX_CHUNK_Y;
-                        chunkY++
-                ) {
-                    Chunk chunk =
-                            world.getChunk(
-                                    chunkX,
-                                    chunkY,
-                                    chunkZ
-                            );
 
-                    if (chunk == null) {
-                        chunk =
-                                world.getOrCreateChunk(
-                                        chunkX,
-                                        chunkY,
-                                        chunkZ
-                                );
-                    }
-
-                    /*
-                     * A structure from another chunk may have already
-                     * caused this chunk object to be created.
-                     *
-                     * Therefore, existence alone does not prove that
-                     * the chunk was properly loaded or generated.
-                     */
-                    if (chunk.isGenerated()) {
-                        continue;
-                    }
-
-                    boolean loadedFromDisk =
-                            saveManager.loadChunk(
-                                    chunk
-                            );
-
-                    if (loadedFromDisk) {
-                        chunk.setGenerated(true);
-
-                        continue;
-                    }
-
-                    terrainGenerator.generateChunk(
-                            world,
-                            chunk
-                    );
-
-                    System.out.println(
-                            "Generated chunk: " +
-                                    chunkX + ", " +
-                                    chunkY + ", " +
-                                    chunkZ
-                    );
-                }
-            }
-        }
 
         /*
          * Find chunks that are now outside render distance.
@@ -454,6 +435,7 @@ public class Main {
          */
         List<Chunk> chunksToUnload =
                 new ArrayList<>();
+
 
         for (Chunk chunk : world.getChunks()) {
             int distanceX =
@@ -468,11 +450,39 @@ public class Main {
                                     playerChunkZ
                     );
 
-            if (
+            boolean outsideRenderDistance =
                     distanceX > RENDER_DISTANCE ||
-                            distanceZ > RENDER_DISTANCE
+                            distanceZ > RENDER_DISTANCE;
+            int horizontalDistance =
+                    Math.max(
+                            distanceX,
+                            distanceZ
+                    );
+
+            boolean unnecessaryVerticalChunk =
+                    !shouldKeepVerticalChunk(
+                            chunk.getChunkY(),
+                            horizontalDistance
+                    );
+
+            boolean workerStillUsesChunk =
+                    chunk.getState() ==
+                            ChunkState.QUEUED ||
+                            chunk.getState() ==
+                                    ChunkState.GENERATING ||
+                            chunk.getState() ==
+                                    ChunkState.MESHING;
+
+            if (
+                    (
+                            outsideRenderDistance ||
+                                    unnecessaryVerticalChunk
+                    ) &&
+                            !workerStillUsesChunk
             ) {
-                chunksToUnload.add(chunk);
+                chunksToUnload.add(
+                        chunk
+                );
             }
         }
 
@@ -510,44 +520,207 @@ public class Main {
             );
         }
 
-        /*
-         * Rebuild the active area.
-         *
-         * This ensures faces along newly loaded or unloaded
-         * chunk borders are updated correctly.
-         */
-        rebuildAllChunkMeshes();
+
+
     }
 
-
-    private void rebuildAllChunkMeshes() {
+    private void processCompletedChunks() {
         /*
-         * Destroy every old GPU mesh.
+         * Limit GPU uploads per frame so a large batch of
+         * completed chunks cannot create a new hitch.
          */
-        for (ChunkRenderData renderData : chunkMeshes.values()) {
-            renderData.destroy();
-        }
+        int maximumUploadsPerFrame = 6;
+        int uploadedCount = 0;
 
-        chunkMeshes.clear();
+        while (
+                uploadedCount <
+                        maximumUploadsPerFrame
+        ) {
+            CompletedChunk completed =
+                    chunkWorker.pollCompletedChunk();
 
-        /*
-         * Build one mesh for every loaded chunk.
-         */
-        for (Chunk chunk : world.getChunks()) {
-            ChunkRenderData renderData =
-                    chunkMeshBuilder.build(
-                            world,
+            if (completed == null) {
+                break;
+            }
+
+            Chunk chunk =
+                    completed.chunk();
+
+            /*
+             * The player may have moved far away while this
+             * chunk was being generated.
+             */
+            Chunk currentChunk =
+                    world.getChunk(
+                            chunk.getChunkX(),
+                            chunk.getChunkY(),
+                            chunk.getChunkZ()
+                    );
+
+            if (currentChunk != chunk) {
+                continue;
+            }
+
+            ChunkRenderData oldRenderData =
+                    chunkMeshes.remove(
                             chunk
                     );
 
-            chunkMeshes.put(chunk, renderData);
-        }
+            if (oldRenderData != null) {
+                oldRenderData.destroy();
+            }
 
-        System.out.println(
-                "Loaded chunks: " +
-                        world.getChunkCount()
+            ChunkRenderData renderData =
+                    ChunkRenderData.fromMeshData(
+                            completed.meshData()
+                    );
+
+            chunkMeshes.put(
+                    chunk,
+                    renderData
+            );
+
+            chunk.setState(
+                    ChunkState.READY
+            );
+
+            /*
+             * Existing neighboring meshes may still contain
+             * now-hidden border faces.
+             *
+             * For the first threaded version, only rebuild
+             * neighbors that are already ready.
+             */
+            rebuildReadyNeighborsOfChunk(
+                    chunk
+            );
+
+            uploadedCount++;
+        }
+    }
+
+    private void rebuildReadyNeighborsOfChunk(
+            Chunk chunk
+    ) {
+        rebuildReadyChunk(
+                chunk.getChunkX() - 1,
+                chunk.getChunkY(),
+                chunk.getChunkZ()
+        );
+
+        rebuildReadyChunk(
+                chunk.getChunkX() + 1,
+                chunk.getChunkY(),
+                chunk.getChunkZ()
+        );
+
+        rebuildReadyChunk(
+                chunk.getChunkX(),
+                chunk.getChunkY() - 1,
+                chunk.getChunkZ()
+        );
+
+        rebuildReadyChunk(
+                chunk.getChunkX(),
+                chunk.getChunkY() + 1,
+                chunk.getChunkZ()
+        );
+
+        rebuildReadyChunk(
+                chunk.getChunkX(),
+                chunk.getChunkY(),
+                chunk.getChunkZ() - 1
+        );
+
+        rebuildReadyChunk(
+                chunk.getChunkX(),
+                chunk.getChunkY(),
+                chunk.getChunkZ() + 1
         );
     }
+
+    private void rebuildReadyChunk(
+            int chunkX,
+            int chunkY,
+            int chunkZ
+    ) {
+        Chunk chunk =
+                world.getChunk(
+                        chunkX,
+                        chunkY,
+                        chunkZ
+                );
+
+        if (
+                chunk == null ||
+                        chunk.getState() !=
+                                ChunkState.READY
+        ) {
+            return;
+        }
+
+        rebuildChunk(
+                chunkX,
+                chunkY,
+                chunkZ
+        );
+
+        chunk.setState(
+                ChunkState.READY
+        );
+    }
+
+    private void rebuildNeighborsOfChunk(
+            Chunk chunk
+    ) {
+        int chunkX =
+                chunk.getChunkX();
+
+        int chunkY =
+                chunk.getChunkY();
+
+        int chunkZ =
+                chunk.getChunkZ();
+
+        rebuildChunk(
+                chunkX - 1,
+                chunkY,
+                chunkZ
+        );
+
+        rebuildChunk(
+                chunkX + 1,
+                chunkY,
+                chunkZ
+        );
+
+        rebuildChunk(
+                chunkX,
+                chunkY - 1,
+                chunkZ
+        );
+
+        rebuildChunk(
+                chunkX,
+                chunkY + 1,
+                chunkZ
+        );
+
+        rebuildChunk(
+                chunkX,
+                chunkY,
+                chunkZ - 1
+        );
+
+        rebuildChunk(
+                chunkX,
+                chunkY,
+                chunkZ + 1
+        );
+    }
+
+
+
 
     private void rebuildChunksAroundBlock(
             int worldX,
@@ -668,10 +841,15 @@ public class Main {
             return;
         }
 
-        ChunkRenderData newMesh =
+        ChunkMeshData meshData =
                 chunkMeshBuilder.build(
                         world,
                         chunk
+                );
+
+        ChunkRenderData newMesh =
+                ChunkRenderData.fromMeshData(
+                        meshData
                 );
 
         chunkMeshes.put(
@@ -680,6 +858,289 @@ public class Main {
         );
     }
 
+    private boolean isPlayerTerrainLoaded() {
+        Vector3f playerPosition =
+                camera.getPosition();
+
+        int blockX =
+                (int) Math.floor(
+                        playerPosition.x
+                );
+
+        int blockY =
+                (int) Math.floor(
+                        playerPosition.y
+                );
+
+        int blockZ =
+                (int) Math.floor(
+                        playerPosition.z
+                );
+
+        Chunk playerChunk =
+                world.getChunkAtWorldBlock(
+                        blockX,
+                        blockY,
+                        blockZ
+                );
+
+        return playerChunk != null &&
+                playerChunk.hasTerrain();
+    }
+
+    private void queueChunkColumn(
+            int chunkX,
+            int chunkZ,
+            int playerChunkY,
+            int horizontalDistance
+    ) {
+        int surfacePriority =
+                horizontalDistance * 100;
+        /*
+         * Near the player, generate the complete underground.
+         */
+        if (
+                horizontalDistance <=
+                        FULL_DEPTH_DISTANCE
+        ) {
+            /*
+             * Start at the player's current vertical layer.
+             */
+            if (
+                    playerChunkY >=
+                            WorldGenerationSettings.MIN_CHUNK_Y &&
+                            playerChunkY <=
+                                    WorldGenerationSettings.MAX_CHUNK_Y
+            ) {
+                queueChunk(
+                        chunkX,
+                        playerChunkY,
+                        chunkZ,
+                        surfacePriority
+                );
+            }
+
+            /*
+             * Expand vertically away from the player.
+             */
+            int maximumVerticalDistance =
+                    Math.max(
+                            playerChunkY -
+                                    WorldGenerationSettings.MIN_CHUNK_Y,
+                            WorldGenerationSettings.MAX_CHUNK_Y -
+                                    playerChunkY
+                    );
+
+            for (
+                    int verticalDistance = 1;
+                    verticalDistance <=
+                            maximumVerticalDistance;
+                    verticalDistance++
+            ) {
+                int chunkBelow =
+                        playerChunkY -
+                                verticalDistance;
+
+                if (
+                        chunkBelow >=
+                                WorldGenerationSettings.MIN_CHUNK_Y
+                ) {
+                    queueChunk(
+                            chunkX,
+                            chunkBelow,
+                            chunkZ,
+                            surfacePriority +
+                                    Math.abs(
+                                            chunkBelow -
+                                                    playerChunkY
+                                    )
+                    );
+                }
+
+                int chunkAbove =
+                        playerChunkY +
+                                verticalDistance;
+
+                if (
+                        chunkAbove <=
+                                WorldGenerationSettings.MAX_CHUNK_Y
+                ) {
+                    queueChunk(
+                            chunkX,
+                            chunkBelow,
+                            chunkZ,
+                            surfacePriority +
+                                    Math.abs(
+                                            chunkBelow +
+                                                    playerChunkY
+                                    )
+                    );
+                }
+            }
+
+            return;
+        }
+
+        /*
+         * At medium distance, keep the surface, the tree layer,
+         * and one shallow underground layer.
+         */
+        if (
+                horizontalDistance <=
+                        SHALLOW_DEPTH_DISTANCE
+        ) {
+            queueChunk(
+                    chunkX,
+                    0,
+                    chunkZ,
+                    surfacePriority
+            );
+
+            queueChunk(
+                    chunkX,
+                    1,
+                    chunkZ,
+                    surfacePriority + 1
+            );
+
+            queueChunk(
+                    chunkX,
+                    -1,
+                    chunkZ,
+                    surfacePriority + 2
+            );
+
+            return;
+        }
+
+        /*
+         * Far away, only generate visible surface terrain.
+         */
+        queueChunk(
+                chunkX,
+                0,
+                chunkZ,
+                surfacePriority
+        );
+
+        queueChunk(
+                chunkX,
+                1,
+                chunkZ,
+                surfacePriority + 1
+        );
+    }
+
+    private void queueChunk(
+            int chunkX,
+            int chunkY,
+            int chunkZ,
+            int priority
+    ) {
+        chunkWorker.queueChunk(
+                chunkX,
+                chunkY,
+                chunkZ,
+                priority
+        );
+    }
+
+    private void queueChunksAroundPlayer(
+            int playerChunkX,
+            int playerChunkY,
+            int playerChunkZ
+    ) {
+        queueChunkColumn(
+                playerChunkX,
+                playerChunkZ,
+                playerChunkY,
+                0
+        );
+
+        for (
+                int radius = 1;
+                radius <= RENDER_DISTANCE;
+                radius++
+        ) {
+            int minimumX =
+                    playerChunkX - radius;
+
+            int maximumX =
+                    playerChunkX + radius;
+
+            int minimumZ =
+                    playerChunkZ - radius;
+
+            int maximumZ =
+                    playerChunkZ + radius;
+
+            for (
+                    int chunkX = minimumX;
+                    chunkX <= maximumX;
+                    chunkX++
+            ) {
+                queueChunkColumn(
+                        chunkX,
+                        minimumZ,
+                        playerChunkY,
+                        radius
+                );
+
+                queueChunkColumn(
+                        chunkX,
+                        maximumZ,
+                        playerChunkY,
+                        radius
+                );
+            }
+
+            for (
+                    int chunkZ = minimumZ + 1;
+                    chunkZ < maximumZ;
+                    chunkZ++
+            ) {
+                queueChunkColumn(
+                        minimumX,
+                        chunkZ,
+                        playerChunkY,
+                        radius
+                );
+
+                queueChunkColumn(
+                        maximumX,
+                        chunkZ,
+                        playerChunkY,
+                        radius
+                );
+            }
+        }
+    }
+
+    private boolean shouldKeepVerticalChunk(
+            int chunkY,
+            int horizontalDistance
+    ) {
+        if (
+                horizontalDistance <=
+                        FULL_DEPTH_DISTANCE
+        ) {
+            return chunkY >=
+                    WorldGenerationSettings.MIN_CHUNK_Y &&
+                    chunkY <=
+                            WorldGenerationSettings.MAX_CHUNK_Y;
+        }
+
+        if (
+                horizontalDistance <=
+                        SHALLOW_DEPTH_DISTANCE
+        ) {
+            return chunkY >= -1 &&
+                    chunkY <= 1;
+        }
+
+        return chunkY >= 0 &&
+                chunkY <= 1;
+    }
 
 
     private void createShaders() {
@@ -1138,7 +1599,7 @@ vec4 textureColor =
                     "Cannot place a block inside the player."
             );
 
-            return;
+           // return;
         }
 
         BlockType selectedBlock =
@@ -1326,10 +1787,33 @@ vec4 textureColor =
 
             previousFrameTime = currentFrameTime;
 
-            processInput();
-            camera.updatePhysics(world, deltaTime);
-            currentRaycast = calculateRaycast();
+            /*
+             * Queue chunks and collect completed worker results before
+             * attempting to move the player.
+             */
             updateLoadedChunks();
+            processCompletedChunks();
+
+            if (waitingForPlayerTerrain) {
+                if (isPlayerTerrainLoaded()) {
+                    waitingForPlayerTerrain = false;
+
+                    System.out.println(
+                            "Player terrain loaded."
+                    );
+                }
+            }
+            else {
+                processInput();
+
+                camera.updatePhysics(
+                        world,
+                        deltaTime
+                );
+
+                currentRaycast =
+                        calculateRaycast();
+            }
             if (removeBlockRequested) {
                 /*
                  * Remove the block in the center of the floor.
@@ -1513,6 +1997,7 @@ vec4 textureColor =
     }
 
     private void cleanup() {
+        chunkWorker.shutdown();
         savePlayer();
         saveDirtyChunks();
 

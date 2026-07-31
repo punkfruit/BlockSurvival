@@ -1,7 +1,5 @@
 package com.daniel.blocksurvival.world.noise;
 
-import java.util.Random;
-
 public class ValueNoise3D {
 
     private final int seed;
@@ -53,16 +51,22 @@ public class ValueNoise3D {
             int y,
             int z
     ) {
-        long combinedSeed =
-                x * 341873128712L
-                        + y * 42317861L
-                        + z * 132897987541L
-                        + seed;
+        int hash =
+                x * 374761393 +
+                        y * 668265263 +
+                        z * 214748364 +
+                        seed * 982451653;
 
-        Random random =
-                new Random(combinedSeed);
+        hash =
+                (hash ^ (hash >> 13))
+                        * 1274126177;
 
-        return random.nextFloat();
+        hash ^=
+                hash >> 16;
+
+        return
+                (hash & 0x7fffffff)
+                        / (float) Integer.MAX_VALUE;
     }
 
     public float sample(

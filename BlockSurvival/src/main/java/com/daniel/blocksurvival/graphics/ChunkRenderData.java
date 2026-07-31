@@ -30,4 +30,46 @@ public class ChunkRenderData {
             transparentMesh.destroy();
         }
     }
+
+    public static ChunkRenderData fromMeshData(
+            ChunkMeshData meshData
+    ) {
+        if (meshData == null) {
+            return new ChunkRenderData(
+                    null,
+                    null
+            );
+        }
+
+        Mesh opaqueMesh =
+                createMesh(
+                        meshData.opaqueMeshData()
+                );
+
+        Mesh transparentMesh =
+                createMesh(
+                        meshData.transparentMeshData()
+                );
+
+        return new ChunkRenderData(
+                opaqueMesh,
+                transparentMesh
+        );
+    }
+
+    private static Mesh createMesh(
+            MeshData meshData
+    ) {
+        if (
+                meshData == null ||
+                        meshData.isEmpty()
+        ) {
+            return null;
+        }
+
+        return new Mesh(
+                meshData.vertices(),
+                meshData.indices()
+        );
+    }
 }

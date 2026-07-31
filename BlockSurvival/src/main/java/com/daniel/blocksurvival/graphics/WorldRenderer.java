@@ -34,10 +34,10 @@ public class WorldRenderer {
             );
 
     private static final float SKY_FOG_START =
-            30.0f;
+            300.0f;
 
     private static final float SKY_FOG_END =
-            50.0f;
+            500.0f;
 
     private static final float WATER_FOG_START =
             0.0f;

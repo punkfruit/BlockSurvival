@@ -37,7 +37,7 @@ public class ChunkMeshBuilder {
                 new FaceAO(1.0f, 1.0f, 1.0f, 1.0f);
     }
 
-    public ChunkRenderData build(World world, Chunk chunk) {
+    public ChunkMeshData build(World world, Chunk chunk) {
         opaqueVertices.clear();
         opaqueIndices.clear();
 
@@ -110,21 +110,21 @@ public class ChunkMeshBuilder {
 
 
 
-        Mesh opaqueMesh =
-                createMesh(
+        MeshData opaqueMeshData =
+                createMeshData(
                         opaqueVertices,
                         opaqueIndices
                 );
 
-        Mesh transparentMesh =
-                createMesh(
+        MeshData transparentMeshData =
+                createMeshData(
                         transparentVertices,
                         transparentIndices
                 );
 
-        return new ChunkRenderData(
-                opaqueMesh,
-                transparentMesh
+        return new ChunkMeshData(
+                opaqueMeshData,
+                transparentMeshData
         );
     }
 
@@ -912,20 +912,21 @@ public class ChunkMeshBuilder {
         return result;
     }
 
-    private Mesh createMesh(
+    private MeshData createMeshData(
             List<Float> vertexList,
             List<Integer> indexList
     ) {
-        /*
-         * An empty bucket does not need a GPU mesh.
-         */
         if (indexList.isEmpty()) {
             return null;
         }
 
-        return new Mesh(
-                convertVerticesToArray(vertexList),
-                convertIndicesToArray(indexList)
+        return new MeshData(
+                convertVerticesToArray(
+                        vertexList
+                ),
+                convertIndicesToArray(
+                        indexList
+                )
         );
     }
 }

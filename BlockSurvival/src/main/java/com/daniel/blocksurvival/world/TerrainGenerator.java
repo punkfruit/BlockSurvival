@@ -15,6 +15,7 @@ public class TerrainGenerator {
     private final ValueNoise3D shaftNoiseA;
     private final ValueNoise3D shaftNoiseB;
     private final ValueNoise3D shaftPlacementNoise;
+    private final ValueNoise3D entranceNoise;
 
     private static final float DESERT_FOREST_BORDER = 0.33f;
     private static final float FOREST_SNOW_BORDER = 0.66f;
@@ -53,6 +54,8 @@ public class TerrainGenerator {
 
         shaftPlacementNoise =
                 new ValueNoise3D(seed + 7000);
+        entranceNoise =
+                new ValueNoise3D(seed + 8000);
     }
 
     public void generateChunk(
@@ -88,7 +91,9 @@ public class TerrainGenerator {
             );
         }
 
-        chunk.setGenerated(true);
+        chunk.setState(
+                ChunkState.GENERATED
+        );
     }
     private void generateTerrain(
             World world,
@@ -181,7 +186,18 @@ public class TerrainGenerator {
                             surfaceBlock
                     );
 
-            if (blockType == BlockType.STONE) {
+            boolean carveEntrance =
+                    shouldCarveEntrance(
+                            worldX,
+                            y,
+                            worldZ,
+                            terrainHeight
+                    );
+
+            if (carveEntrance) {
+                blockType = null;
+
+            } else if (blockType == BlockType.STONE) {
                 boolean carveChamber =
                         shouldCarveChamber(
                                 worldX,
@@ -211,6 +227,27 @@ public class TerrainGenerator {
                                 carveTunnel ||
                                 carveShaft
                 ) {
+                    blockType = null;
+                }
+            }
+
+            /*
+             * Remove unsupported surface-layer blocks exposed by caves.
+             */
+            if (
+                    blockType == BlockType.DIRT ||
+                            blockType == BlockType.GRASS ||
+                            blockType == BlockType.SAND ||
+                            blockType == BlockType.SNOW
+            ) {
+                BlockType blockBelow =
+                        world.getBlock(
+                                worldX,
+                                y - 1,
+                                worldZ
+                        );
+
+                if (blockBelow == null) {
                     blockType = null;
                 }
             }
@@ -302,6 +339,16 @@ public class TerrainGenerator {
                         worldX,
                         worldZ
                 );
+        BlockType groundBlock =
+                world.getBlock(
+                        worldX,
+                        terrainHeight,
+                        worldZ
+                );
+
+        if (groundBlock != BlockType.GRASS) {
+            return;
+        }
 
         world.setGeneratedBlock(
                 worldX,
@@ -403,6 +450,16 @@ public class TerrainGenerator {
                         worldX,
                         worldZ
                 );
+        BlockType groundBlock =
+                world.getBlock(
+                        worldX,
+                        terrainHeight,
+                        worldZ
+                );
+
+        if (groundBlock != BlockType.SAND) {
+            return;
+        }
 
         int cactusHeight =
                 getCactusHeight(
@@ -506,6 +563,16 @@ public class TerrainGenerator {
                         worldX,
                         worldZ
                 );
+        BlockType groundBlock =
+                world.getBlock(
+                        worldX,
+                        terrainHeight,
+                        worldZ
+                );
+
+        if (groundBlock != BlockType.GRASS) {
+            return;
+        }
 
         placeTree(
                 world,
@@ -852,19 +919,20 @@ public class TerrainGenerator {
             int worldZ,
             int terrainHeight
     ) {
-        /*
-         * Keep a solid roof between caves and the surface.
-         */
         int surfaceProtectionDepth = 5;
 
-        if (worldY >= terrainHeight - surfaceProtectionDepth) {
+        if (
+                worldY >=
+                        terrainHeight -
+                                surfaceProtectionDepth
+        ) {
             return false;
         }
 
-        /*
-         * Keep the very bottom solid for now.
-         */
-        if (worldY <= WorldGenerationSettings.MIN_WORLD_Y + 2) {
+        if (
+                worldY <=
+                        WorldGenerationSettings.MIN_WORLD_Y + 2
+        ) {
             return false;
         }
 
@@ -877,40 +945,15 @@ public class TerrainGenerator {
                         0.5f
                 );
 
-        /*
-         * Higher threshold = fewer caves.
-         * Lower threshold = more caves.
-         */
-        return noiseValue > 0.68f;
+        return noiseValue > 0.65f;
     }
 
-    private boolean shouldCarveTunnel(
+
+    private boolean isInsideTunnelShape(
             int worldX,
             int worldY,
-            int worldZ,
-            int terrainHeight
+            int worldZ
     ) {
-        /*
-         * Tunnels may approach closer to the surface than large
-         * chambers, but we still leave a small solid roof.
-         */
-        int surfaceProtectionDepth = 3;
-
-        if (worldY >= terrainHeight - surfaceProtectionDepth) {
-            return false;
-        }
-
-        /*
-         * Preserve the bottom few layers of the world.
-         */
-        if (worldY <= WorldGenerationSettings.MIN_WORLD_Y + 2) {
-            return false;
-        }
-
-        /*
-         * Scaling the coordinates upward makes this noise pattern
-         * somewhat tighter than the large chamber noise.
-         */
         float horizontalScale = 1.20f;
         float verticalScale = 2.40f;
 
@@ -928,13 +971,6 @@ public class TerrainGenerator {
                         worldZ * horizontalScale
                 );
 
-        /*
-         * Each noise field ranges approximately from 0.0 to 1.0.
-         *
-         * Values close to 0.5 form a thin, winding band.
-         * Requiring both bands at once creates tube-like
-         * intersections rather than giant hollow regions.
-         */
         float tunnelWidth = 0.075f;
 
         boolean insideFirstBand =
@@ -949,16 +985,35 @@ public class TerrainGenerator {
                 insideSecondBand;
     }
 
+    private boolean shouldCarveTunnel(
+            int worldX,
+            int worldY,
+            int worldZ,
+            int terrainHeight
+    ) {
+        int surfaceProtectionDepth = 3;
+
+        if (worldY >= terrainHeight - surfaceProtectionDepth) {
+            return false;
+        }
+
+        if (worldY <= WorldGenerationSettings.MIN_WORLD_Y + 2) {
+            return false;
+        }
+
+        return isInsideTunnelShape(
+                worldX,
+                worldY,
+                worldZ
+        );
+    }
+
     private boolean shouldCarveShaft(
             int worldX,
             int worldY,
             int worldZ,
             int terrainHeight
     ) {
-        /*
-         * Keep shafts from immediately breaking through the
-         * surface. Cave entrances will be handled separately.
-         */
         int surfaceProtectionDepth = 5;
 
         if (worldY >= terrainHeight - surfaceProtectionDepth) {
@@ -1024,5 +1079,65 @@ public class TerrainGenerator {
 
         return insideFirstBand &&
                 insideSecondBand;
+    }
+
+    private boolean shouldCarveEntrance(
+            int worldX,
+            int worldY,
+            int worldZ,
+            int terrainHeight
+    ) {
+        if (!shouldAllowEntrance(
+                worldX,
+                worldZ,
+                terrainHeight
+        )) {
+            return false;
+        }
+
+        /*
+         * Entrance carving only occurs near the surface.
+         *
+         * This lets an existing tunnel cut through the stone,
+         * dirt, and surface block without affecting deep caves.
+         */
+        int entranceDepth = 6;
+
+        if (worldY < terrainHeight - entranceDepth) {
+            return false;
+        }
+
+        if (worldY > terrainHeight) {
+            return false;
+        }
+
+        return isInsideTunnelShape(
+                worldX,
+                worldY,
+                worldZ
+        );
+    }
+
+    private boolean shouldAllowEntrance(
+            int worldX,
+            int worldZ,
+            int terrainHeight
+    ) {
+        /*
+         * Don't make cave entrances in low-lying areas.
+         * They look much better in hills and mountains.
+         */
+        if (terrainHeight < 10) {
+            return false;
+        }
+
+        float value =
+                entranceNoise.sample(
+                        worldX * 0.08f,
+                        0,
+                        worldZ * 0.08f
+                );
+
+        return value > 0.80f;
     }
 }

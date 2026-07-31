@@ -188,7 +188,9 @@ public class SaveManager {
              * the file, so it is no longer dirty.
              */
             chunk.clearDirty();
-            chunk.setGenerated(true);
+            chunk.setState(
+                    ChunkState.GENERATED
+            );
 
             System.out.println(
                     "Loaded chunk: "

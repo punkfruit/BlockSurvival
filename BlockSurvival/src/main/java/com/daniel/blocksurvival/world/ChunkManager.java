@@ -1,38 +1,47 @@
 package com.daniel.blocksurvival.world;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
 public class ChunkManager {
 
-    private final Map<String, Chunk> chunks =
+    private final Map<ChunkPosition, Chunk> chunks =
             new HashMap<>();
 
-    public void addChunk(Chunk chunk) {
-        String key = createChunkKey(
-                chunk.getChunkX(),
-                chunk.getChunkY(),
-                chunk.getChunkZ()
+    public synchronized void addChunk(Chunk chunk) {
+        ChunkPosition position =
+                createChunkPosition(
+                        chunk.getChunkX(),
+                        chunk.getChunkY(),
+                        chunk.getChunkZ()
+                );
+
+        chunks.put(
+                position,
+                chunk
         );
 
-        chunks.put(key, chunk);
     }
 
-    public Chunk getChunk(
+    public synchronized Chunk getChunk(
             int chunkX,
             int chunkY,
             int chunkZ
     ) {
-        String key = createChunkKey(
-                chunkX,
-                chunkY,
-                chunkZ
-        );
+        ChunkPosition position =
+                createChunkPosition(
+                        chunkX,
+                        chunkY,
+                        chunkZ
+                );
 
-        return chunks.get(key);
+        return chunks.get(
+                position
+        );
     }
 
-    public boolean hasChunk(
+    public synchronized boolean hasChunk(
             int chunkX,
             int chunkY,
             int chunkZ
@@ -44,13 +53,13 @@ public class ChunkManager {
         ) != null;
     }
 
-    public void removeChunk(
+    public synchronized void removeChunk(
             int chunkX,
             int chunkY,
             int chunkZ
     ) {
         chunks.remove(
-                createChunkKey(
+                createChunkPosition(
                         chunkX,
                         chunkY,
                         chunkZ
@@ -58,25 +67,29 @@ public class ChunkManager {
         );
     }
 
-    public Iterable<Chunk> getChunks() {
-        return chunks.values();
+    public synchronized Iterable<Chunk> getChunks() {
+        return new ArrayList<>(
+                chunks.values()
+        );
     }
 
-    public int getChunkCount() {
+    public synchronized int getChunkCount() {
         return chunks.size();
     }
 
-    private String createChunkKey(
+    private ChunkPosition createChunkPosition(
             int chunkX,
             int chunkY,
             int chunkZ
     ) {
-        return chunkX + "," +
-                chunkY + "," +
-                chunkZ;
+        return new ChunkPosition(
+                chunkX,
+                chunkY,
+                chunkZ
+        );
     }
 
-    public void setBlock(
+    public synchronized void setBlock(
             int worldX,
             int worldY,
             int worldZ,
@@ -91,7 +104,7 @@ public class ChunkManager {
         );
     }
 
-    public void setGeneratedBlock(
+    public synchronized void setGeneratedBlock(
             int worldX,
             int worldY,
             int worldZ,
@@ -187,7 +200,7 @@ public class ChunkManager {
         }
     }
 
-    public BlockType getBlock(
+    public synchronized BlockType getBlock(
             int worldX,
             int worldY,
             int worldZ
@@ -217,7 +230,7 @@ public class ChunkManager {
         );
     }
 
-    public boolean hasBlock(
+    public synchronized boolean hasBlock(
             int worldX,
             int worldY,
             int worldZ
@@ -229,7 +242,7 @@ public class ChunkManager {
         ) != null;
     }
 
-    public Chunk getOrCreateChunk(
+    public synchronized Chunk getOrCreateChunk(
             int chunkX,
             int chunkY,
             int chunkZ
