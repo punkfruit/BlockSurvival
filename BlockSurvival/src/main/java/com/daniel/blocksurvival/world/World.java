@@ -122,4 +122,131 @@ public class World {
                 chunkZ
         );
     }
+
+    public int getSkyLight(
+            int worldX,
+            int worldY,
+            int worldZ
+    ) {
+        Chunk chunk =
+                getChunkAtWorldBlock(
+                        worldX,
+                        worldY,
+                        worldZ
+                );
+
+        if (chunk == null) {
+            return 0;
+        }
+
+        int localX =
+                Math.floorMod(
+                        worldX,
+                        Chunk.SIZE
+                );
+
+        int localY =
+                Math.floorMod(
+                        worldY,
+                        Chunk.SIZE
+                );
+
+        int localZ =
+                Math.floorMod(
+                        worldZ,
+                        Chunk.SIZE
+                );
+
+        return chunk.getSkyLight(
+                localX,
+                localY,
+                localZ
+        );
+    }
+
+    public void setSkyLight(
+            int worldX,
+            int worldY,
+            int worldZ,
+            int lightLevel
+    ) {
+        Chunk chunk =
+                getChunkAtWorldBlock(
+                        worldX,
+                        worldY,
+                        worldZ
+                );
+
+        /*
+         * Lighting should not create missing chunks.
+         *
+         * It may spread only through terrain that has actually
+         * been loaded or generated.
+         */
+        if (chunk == null) {
+            return;
+        }
+
+        int localX =
+                Math.floorMod(
+                        worldX,
+                        Chunk.SIZE
+                );
+
+        int localY =
+                Math.floorMod(
+                        worldY,
+                        Chunk.SIZE
+                );
+
+        int localZ =
+                Math.floorMod(
+                        worldZ,
+                        Chunk.SIZE
+                );
+
+        chunk.setSkyLight(
+                localX,
+                localY,
+                localZ,
+                lightLevel
+        );
+    }
+
+    public boolean allowsSkyLight(
+            int worldX,
+            int worldY,
+            int worldZ
+    ) {
+        Chunk chunk =
+                getChunkAtWorldBlock(
+                        worldX,
+                        worldY,
+                        worldZ
+                );
+
+        /*
+         * Missing chunks are not traversable yet.
+         *
+         * When they eventually load, we will relight the nearby
+         * border so illumination can continue into them.
+         */
+        if (
+                chunk == null ||
+                        !chunk.hasTerrain()
+        ) {
+            return false;
+        }
+
+        BlockType block =
+                getBlock(
+                        worldX,
+                        worldY,
+                        worldZ
+                );
+
+        return block == null ||
+                !block.isOpaque();
+    }
+
 }

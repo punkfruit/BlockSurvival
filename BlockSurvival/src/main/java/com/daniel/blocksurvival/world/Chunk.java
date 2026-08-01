@@ -8,6 +8,17 @@ public class Chunk {
     public static final int SIZE = 16;
 
     private final BlockType[][][] blocks;
+    /*
+     * Light levels are stored separately from blocks.
+     *
+     * Both arrays store values from 0–15.
+     *
+     * Sky light comes from the sun.
+     * Block light comes from torches, lava, etc.
+     */
+    private final byte[] skyLight;
+
+    private final byte[] blockLight;
 
     /*
      * These are chunk coordinates, not block coordinates.
@@ -33,6 +44,15 @@ public class Chunk {
         this.chunkZ = chunkZ;
 
         blocks = new BlockType[SIZE][SIZE][SIZE];
+        skyLight =
+                new byte[
+                        SIZE * SIZE * SIZE
+                        ];
+
+        blockLight =
+                new byte[
+                        SIZE * SIZE * SIZE
+                        ];
     }
 
     public synchronized void setBlock(
@@ -178,6 +198,135 @@ public class Chunk {
             ChunkState state
     ) {
         this.state = state;
+    }
+
+    /*
+     * Converts a local block coordinate into the
+     * corresponding position inside the light arrays.
+     */
+    private int lightIndex(
+            int localX,
+            int localY,
+            int localZ
+    ) {
+        return
+                localX +
+                        localY * SIZE +
+                        localZ * SIZE * SIZE;
+    }
+
+    public synchronized int getSkyLight(
+            int localX,
+            int localY,
+            int localZ
+    ) {
+        if (!isInsideChunk(
+                localX,
+                localY,
+                localZ
+        )) {
+            return 0;
+        }
+
+        return Byte.toUnsignedInt(
+                skyLight[
+                        lightIndex(
+                                localX,
+                                localY,
+                                localZ
+                        )
+                        ]
+        );
+    }
+
+    public synchronized void setSkyLight(
+            int localX,
+            int localY,
+            int localZ,
+            int lightLevel
+    ) {
+        if (!isInsideChunk(
+                localX,
+                localY,
+                localZ
+        )) {
+            return;
+        }
+
+        lightLevel =
+                Math.max(
+                        0,
+                        Math.min(
+                                15,
+                                lightLevel
+                        )
+                );
+
+        skyLight[
+                lightIndex(
+                        localX,
+                        localY,
+                        localZ
+                )
+                ] =
+                (byte) lightLevel;
+    }
+
+    public synchronized int getBlockLight(
+            int localX,
+            int localY,
+            int localZ
+    ) {
+        if (!isInsideChunk(
+                localX,
+                localY,
+                localZ
+        )) {
+            return 0;
+        }
+
+        return Byte.toUnsignedInt(
+                blockLight[
+                        lightIndex(
+                                localX,
+                                localY,
+                                localZ
+                        )
+                        ]
+        );
+    }
+
+    public synchronized void setBlockLight(
+            int localX,
+            int localY,
+            int localZ,
+            int lightLevel
+    ) {
+        if (!isInsideChunk(
+                localX,
+                localY,
+                localZ
+        )) {
+            return;
+        }
+
+        lightLevel =
+                Math.max(
+                        0,
+                        Math.min(
+                                15,
+                                lightLevel
+                        )
+                );
+
+        blockLight[
+                lightIndex(
+                        localX,
+                        localY,
+                        localZ
+                )
+                ] =
+                (byte) lightLevel;
     }
 
     public boolean hasTerrain() {

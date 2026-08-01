@@ -1,5 +1,6 @@
 package com.daniel.blocksurvival.graphics;
 
+import com.daniel.blocksurvival.Main;
 import com.daniel.blocksurvival.world.*;
 import com.daniel.blocksurvival.graphics.RenderMaterial;
 import java.util.ArrayList;
@@ -98,6 +99,7 @@ public class ChunkMeshBuilder {
                         );
 
                         case CROSS -> addCross(
+                                world,
                                 worldX,
                                 worldY,
                                 worldZ,
@@ -545,11 +547,18 @@ public class ChunkMeshBuilder {
     }
 
     private void addCross(
+            World world,
             float x,
             float y,
             float z,
             BlockType type
     ) {
+        float skyLight =
+                world.getSkyLight(
+                        (int) x,
+                        (int) y,
+                        (int) z
+                ) / 15.0f;
         /*
          * First diagonal quad.
          */
@@ -564,7 +573,8 @@ public class ChunkMeshBuilder {
                 1.0f,
                 0.0f,
                 0.0f,
-                1.0f
+                1.0f,
+                skyLight
         );
 
         /*
@@ -581,7 +591,8 @@ public class ChunkMeshBuilder {
                 1.0f,
                 0.0f,
                 0.0f,
-                1.0f
+                1.0f,
+                skyLight
         );
 
     }
@@ -602,6 +613,12 @@ public class ChunkMeshBuilder {
                 z
         );
 
+        float skyLight =
+                world.getSkyLight(
+                        x,
+                        y,
+                        z + 1
+                ) / 15.0f;
         addFace(
                 x - 0.5f, y + topOffset, z + 0.5f,
                 x - 0.5f, y - 0.5f, z + 0.5f,
@@ -613,7 +630,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                0.0f
+                0.0f,
+                skyLight
         );
     }
 
@@ -633,6 +651,12 @@ public class ChunkMeshBuilder {
                 z
         );
 
+        float skyLight =
+                world.getSkyLight(
+                        x,
+                        y,
+                        z - 1
+                ) / 15.0f;
         addFace(
                 x + 0.5f, y + topOffset, z - 0.5f,
                 x + 0.5f, y - 0.5f, z - 0.5f,
@@ -644,7 +668,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                0.0f
+                0.0f,
+                skyLight
         );
     }
 
@@ -664,6 +689,12 @@ public class ChunkMeshBuilder {
                 y,
                 z
         );
+        float skyLight =
+                world.getSkyLight(
+                        x - 1,
+                        y,
+                        z
+                ) / 15.0f;
         addFace(
                 x - 0.5f, y + topOffset, z - 0.5f,
                 x - 0.5f, y - 0.5f, z - 0.5f,
@@ -675,7 +706,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                0.0f
+                0.0f,
+                skyLight
         );
     }
 
@@ -695,6 +727,12 @@ public class ChunkMeshBuilder {
                 y,
                 z
         );
+        float skyLight =
+                world.getSkyLight(
+                        x + 1,
+                        y,
+                        z
+                ) / 15.0f;
         addFace(
                 x + 0.5f, y + topOffset, z + 0.5f,
                 x + 0.5f, y - 0.5f, z + 0.5f,
@@ -706,7 +744,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                0.0f
+                0.0f,
+                skyLight
         );
     }
 
@@ -727,6 +766,13 @@ public class ChunkMeshBuilder {
                 z
         );
 
+        float skyLight =
+                world.getSkyLight(
+                        x,
+                        y + 1,
+                        z
+                ) / 15.0f;
+
         addFace(
                 x - 0.5f, y + topOffset, z - 0.5f,
                 x - 0.5f, y + topOffset, z + 0.5f,
@@ -738,7 +784,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                0.0f
+                0.0f,
+                skyLight
         );
     }
 
@@ -757,6 +804,12 @@ public class ChunkMeshBuilder {
                 y,
                 z
         );
+        float skyLight =
+                world.getSkyLight(
+                        x,
+                        y - 1,
+                        z
+                ) / 15.0f;
         addFace(
                 x - 0.5f, y - 0.5f, z + 0.5f,
                 x - 0.5f, y - 0.5f, z - 0.5f,
@@ -768,7 +821,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                0.0f
+                0.0f,
+                skyLight
         );
     }
 
@@ -783,11 +837,12 @@ public class ChunkMeshBuilder {
             float bend1,
             float bend2,
             float bend3,
-            float bend4
+            float bend4,
+            float skyLight
     ) {
         faceCount++;
         int firstVertexIndex =
-                currentVertices.size() / 8;
+                currentVertices.size() / 9;
 
         float tileSize = BlockType.getTileSize();
 
@@ -800,13 +855,16 @@ public class ChunkMeshBuilder {
         /*
          * Position plus final atlas UV coordinate.
          */
+
+
         addVertex(
                 x1, y1, z1,
                 atlasX,
                 atlasY,
                 ao.vertex1,
                 material,
-                bend1
+                bend1,
+                skyLight
         );
 
         addVertex(
@@ -814,7 +872,8 @@ public class ChunkMeshBuilder {
                 atlasX,
                 atlasY + tileSize,
                 ao.vertex2,
-                material,bend2
+                material,bend2,
+                skyLight
         );
 
         addVertex(
@@ -822,7 +881,8 @@ public class ChunkMeshBuilder {
                 atlasX + tileSize,
                 atlasY + tileSize,
                 ao.vertex3,
-                material,bend3
+                material,bend3,
+                skyLight
         );
 
         addVertex(
@@ -830,7 +890,8 @@ public class ChunkMeshBuilder {
                 atlasX + tileSize,
                 atlasY,
                 ao.vertex4,
-                material,bend4
+                material,bend4,
+                skyLight
         );
 
         /*
@@ -873,7 +934,8 @@ public class ChunkMeshBuilder {
             float v,
             float ao,
             RenderMaterial material,
-            float bendWeight
+            float bendWeight,
+            float skyLight
     )
     {
         currentVertices.add(x);
@@ -884,6 +946,7 @@ public class ChunkMeshBuilder {
         currentVertices.add(ao);
         currentVertices.add(material.getId());
         currentVertices.add(bendWeight);
+        currentVertices.add(skyLight);
     }
 
     private float[] convertVerticesToArray(
@@ -928,5 +991,56 @@ public class ChunkMeshBuilder {
                         indexList
                 )
         );
+    }
+    private float sampleSkyLight(
+            World world,
+            float worldX,
+            float worldY,
+            float worldZ
+    ) {
+        int blockX =
+                (int) Math.floor(worldX);
+
+        int blockY =
+                (int) Math.floor(worldY);
+
+        int blockZ =
+                (int) Math.floor(worldZ);
+
+        Chunk chunk =
+                world.getChunkAtWorldBlock(
+                        blockX,
+                        blockY,
+                        blockZ
+                );
+
+        if (chunk == null) {
+            return 1.0f;
+        }
+
+        int localX =
+                Math.floorMod(
+                        blockX,
+                        Chunk.SIZE
+                );
+
+        int localY =
+                Math.floorMod(
+                        blockY,
+                        Chunk.SIZE
+                );
+
+        int localZ =
+                Math.floorMod(
+                        blockZ,
+                        Chunk.SIZE
+                );
+
+        return
+                chunk.getSkyLight(
+                        localX,
+                        localY,
+                        localZ
+                ) / 15.0f;
     }
 }

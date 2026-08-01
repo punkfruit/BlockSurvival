@@ -60,6 +60,21 @@ public class ChunkWorker {
             new LinkedBlockingQueue<>();
 
     /*
+     * Prevent the same chunk from appearing in the mesh queue
+     * more than once simultaneously.
+     */
+
+    /*
+     * Records chunks whose lighting changed.
+     *
+     * If lighting changes while a chunk is already meshing,
+     * this flag survives until that mesh has been uploaded,
+     * after which another remesh can be scheduled.
+     */
+    private final Set<ChunkPosition> remeshRequested =
+            ConcurrentHashMap.newKeySet();
+
+    /*
      * Finished CPU mesh data waiting for the main thread
      * to upload it to OpenGL.
      */
@@ -85,6 +100,9 @@ public class ChunkWorker {
     private final Thread meshThread;
 
     private volatile boolean running = true;
+
+    private final Set<ChunkPosition> queuedMeshes =
+            ConcurrentHashMap.newKeySet();
 
     public ChunkWorker(
             World world,
@@ -316,6 +334,57 @@ public class ChunkWorker {
         }
     }
 
+    private ChunkPosition getChunkPosition(
+            Chunk chunk
+    ) {
+        return new ChunkPosition(
+                chunk.getChunkX(),
+                chunk.getChunkY(),
+                chunk.getChunkZ()
+        );
+    }
+
+    private void queueMesh(
+            Chunk chunk
+    ) {
+        ChunkPosition position =
+                getChunkPosition(
+                        chunk
+                );
+
+        /*
+         * Only one waiting mesh job per coordinate.
+         */
+        if (!queuedMeshes.add(position)) {
+            return;
+        }
+
+        generatedChunks.offer(
+                chunk
+        );
+    }
+
+
+
+    public void onChunkUploaded(
+            Chunk chunk
+    ) {
+        ChunkPosition position =
+                getChunkPosition(
+                        chunk
+                );
+
+        /*
+         * If lighting changed while the previous mesh was being
+         * constructed or uploaded, schedule one fresh rebuild now.
+         */
+        if (remeshRequested.contains(position)) {
+            queueMesh(
+                    chunk
+            );
+        }
+    }
+
     /*
      * Second pipeline stage:
      *
@@ -333,6 +402,14 @@ public class ChunkWorker {
                 if (chunk == null) {
                     continue;
                 }
+
+                ChunkPosition position =
+                        new ChunkPosition(
+                                chunk.getChunkX(),
+                                chunk.getChunkY(),
+                                chunk.getChunkZ()
+                        );
+
 
                 meshChunk(
                         chunk
@@ -393,6 +470,7 @@ public class ChunkWorker {
                     ChunkState.GENERATING
             );
 
+            /*
             System.out.println(
                     Thread.currentThread().getName()
                             + " generating chunk "
@@ -402,6 +480,8 @@ public class ChunkWorker {
                             + ", "
                             + chunk.getChunkZ()
             );
+
+             */
 
             boolean loadedFromDisk =
                     saveManager.loadChunk(
@@ -416,20 +496,29 @@ public class ChunkWorker {
             }
 
             /*
-             * Physics, water, entities, and other gameplay
-             * systems may now read the chunk's block data.
+             * Lighting must run for both newly generated terrain
+             * and chunks loaded from disk.
              */
+            Set<Chunk> lightChangedChunks =
+                    terrainGenerator.generateSkyLight(
+                            world,
+                            chunk
+                    );
+
             chunk.setState(
                     ChunkState.GENERATED
             );
 
-            /*
-             * Hand the chunk to the independent mesh thread.
-             *
-             * The generation thread may immediately begin
-             * processing the next terrain job.
-             */
-            generatedChunks.offer(
+            for (
+                    Chunk changedChunk :
+                    lightChangedChunks
+            ) {
+                requestRemesh(
+                        changedChunk
+                );
+            }
+
+            queueMesh(
                     chunk
             );
         }
@@ -458,19 +547,29 @@ public class ChunkWorker {
     private void meshChunk(
             Chunk chunk
     ) {
+        ChunkPosition position =
+                getChunkPosition(
+                        chunk
+                );
+
+        queuedMeshes.remove(
+                position
+        );
+
         try {
-            /*
-             * The chunk may have been removed or changed later
-             * in the engine's lifetime. For now, only mesh chunks
-             * that reached the expected generated state.
-             */
             synchronized (chunk) {
                 if (
                         chunk.getState() !=
-                                ChunkState.GENERATED
+                                ChunkState.GENERATED &&
+                                chunk.getState() !=
+                                        ChunkState.READY
                 ) {
                     return;
                 }
+
+                remeshRequested.remove(
+                        position
+                );
 
                 chunk.setState(
                         ChunkState.MESHING
@@ -483,12 +582,6 @@ public class ChunkWorker {
                             chunk
                     );
 
-            /*
-             * READY is deliberately not assigned here.
-             *
-             * The main thread still needs to create the OpenGL
-             * Mesh objects from these arrays.
-             */
             completedChunks.offer(
                     new CompletedChunk(
                             chunk,
@@ -497,9 +590,6 @@ public class ChunkWorker {
             );
         }
         catch (Exception exception) {
-            /*
-             * The terrain still exists even if meshing failed.
-             */
             chunk.setState(
                     ChunkState.GENERATED
             );
@@ -554,5 +644,24 @@ public class ChunkWorker {
         catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    public void requestRemesh(
+            Chunk chunk
+    ) {
+        ChunkPosition position =
+                new ChunkPosition(
+                        chunk.getChunkX(),
+                        chunk.getChunkY(),
+                        chunk.getChunkZ()
+                );
+
+        if (!queuedMeshes.add(position)) {
+            return;
+        }
+
+        generatedChunks.offer(
+                chunk
+        );
     }
 }

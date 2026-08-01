@@ -20,6 +20,7 @@ import static org.lwjgl.system.MemoryStack.stackPush;
 
 public class Main {
 
+
     private long window;
     private final Hotbar hotbar =
             new Hotbar();
@@ -50,7 +51,7 @@ public class Main {
     private int framebufferWidth = 1280;
     private int framebufferHeight = 720;
 
-    private final World world = new World();
+    public final World world = new World(); //setting public temp
 
     private final SaveManager saveManager =
             new SaveManager("World1");
@@ -68,7 +69,7 @@ public class Main {
     private final Map<Chunk, ChunkRenderData> chunkMeshes =
             new HashMap<>();
 
-    private static final int RENDER_DISTANCE = 20; //goal is 32 or something eventually!
+    private static final int RENDER_DISTANCE = 10; //goal is 32 or something eventually!
 
     private static final int FULL_DEPTH_DISTANCE = 4;
 
@@ -380,11 +381,14 @@ public class Main {
                 RENDER_DISTANCE
         );
 
+        /*
         System.out.println(
                 "Player entered chunk: " +
                         playerChunkX + ", " +
                         playerChunkZ
         );
+
+         */
 
 
         /*
@@ -513,11 +517,14 @@ public class Main {
                     chunk.getChunkZ()
             );
 
+            /*
             System.out.println(
                     "Unloaded chunk: " +
                             chunk.getChunkX() + ", " +
                             chunk.getChunkZ()
             );
+
+             */
         }
 
 
@@ -583,6 +590,9 @@ public class Main {
             chunk.setState(
                     ChunkState.READY
             );
+            chunkWorker.onChunkUploaded(
+                    chunk
+            );
 
             /*
              * Existing neighboring meshes may still contain
@@ -591,9 +601,12 @@ public class Main {
              * For the first threaded version, only rebuild
              * neighbors that are already ready.
              */
+            /*
+            //killing fps :(
             rebuildReadyNeighborsOfChunk(
                     chunk
             );
+            */
 
             uploadedCount++;
         }
@@ -813,12 +826,15 @@ public class Main {
             int chunkY,
             int chunkZ
     ) {
+        /*
         System.out.println(
                 "Rebuilding chunk: " +
                         chunkX + ", " +
                         chunkY + ", " +
                         chunkZ
         );
+
+         */
         Chunk chunk =
                 world.getChunk(
                         chunkX,
@@ -1152,21 +1168,29 @@ public class Main {
         layout (location = 2) in float ambientOcclusion;
         layout (location = 3) in float material;
         layout (location = 4) in float bendWeight;
+        layout (location = 5) in float skyLight;
 
         const float MATERIAL_DEFAULT = 0.0;
         const float MATERIAL_WATER = 1.0;
         const float MATERIAL_FOLIAGE = 2.0;
         const float MATERIAL_LEAVES = 3.0;
+        
+        
 
         uniform mat4 mvpMatrix;
         uniform float animationTime;
+
 
         out vec2 fragmentTextureCoordinate;
         out vec3 fragmentWorldPosition;
         out float fragmentAO;
         out float fragmentMaterial;
+        out float fragmentSkyLight;
+        
+        
 
         void main() {
+        fragmentSkyLight = skyLight;
             vec3 animatedPosition =
                     position;
 
@@ -1296,6 +1320,7 @@ public class Main {
         in vec3 fragmentWorldPosition;
         in float fragmentAO;
         in float fragmentMaterial;
+        in float fragmentSkyLight;
         
         uniform sampler2D blockTexture;
         uniform vec3 cameraPosition;
@@ -1445,7 +1470,8 @@ vec4 textureColor =
             vec3 litColor =
                     textureColor.rgb *
                     brightness *
-                    fragmentAO;
+                    fragmentAO *
+                    fragmentSkyLight;
         
             float distanceFromCamera =
                     length(
@@ -1599,7 +1625,7 @@ vec4 textureColor =
                     "Cannot place a block inside the player."
             );
 
-           // return;
+            return;
         }
 
         BlockType selectedBlock =

@@ -39,7 +39,7 @@ public class Mesh {
                 3,
                 GL_FLOAT,
                 false,
-                8 * Float.BYTES,
+                9 * Float.BYTES,
                 0
         );
 
@@ -50,7 +50,7 @@ public class Mesh {
                 2,
                 GL_FLOAT,
                 false,
-                8 * Float.BYTES,
+                9 * Float.BYTES,
                 3 * Float.BYTES
         );
 
@@ -61,7 +61,7 @@ public class Mesh {
                 1,
                 GL_FLOAT,
                 false,
-                8 * Float.BYTES,
+                9 * Float.BYTES,
                 5 * Float.BYTES
         );
 
@@ -72,7 +72,7 @@ public class Mesh {
                 1,
                 GL_FLOAT,
                 false,
-                8 * Float.BYTES,
+                9 * Float.BYTES,
                 6 * Float.BYTES
         );
 
@@ -83,11 +83,22 @@ public class Mesh {
                 1,
                 GL_FLOAT,
                 false,
-                8 * Float.BYTES,
+                9 * Float.BYTES,
                 7 * Float.BYTES
         );
 
         glEnableVertexAttribArray(4);
+
+        glVertexAttribPointer(
+                5,
+                1,
+                GL_FLOAT,
+                false,
+                9 * Float.BYTES,
+                8 * Float.BYTES
+        );
+
+        glEnableVertexAttribArray(5);
 
         glBindVertexArray(0);
     }
