@@ -18,6 +18,11 @@ public final class WorldGenerationSettings {
     public static final int MIN_WORLD_Y =
             MIN_CHUNK_Y * Chunk.SIZE;
 
+    public static final int MAX_WORLD_Y =
+            (
+                    MAX_CHUNK_Y + 1
+            ) * Chunk.SIZE - 1;
+
     private WorldGenerationSettings() {
     }
 }

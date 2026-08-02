@@ -1,15 +1,16 @@
 package com.daniel.blocksurvival.world;
 
 public enum BlockType {
-    GRASS(new AtlasTile(0, 0), new AtlasTile(0,1),new AtlasTile(1,0), BlockModel.CUBE, true, 0.5f),
+    GRASS(new AtlasTile(0, 0), new AtlasTile(0,1),new AtlasTile(1,0), BlockModel.CUBE, true, 0.5f, 0),
     DIRT(new AtlasTile(1, 0), BlockModel.CUBE, true),
     STONE(new AtlasTile(2, 0), BlockModel.CUBE, true),
     SAND(new AtlasTile(3, 0), BlockModel.CUBE, true),
-    WOOD(new AtlasTile(4, 1), new AtlasTile(4,0),new AtlasTile(4,1), BlockModel.CUBE, true, 0.5f),
+    WOOD(new AtlasTile(4, 1), new AtlasTile(4,0),new AtlasTile(4,1), BlockModel.CUBE, true, 0.5f, 0),
     LEAVES(new AtlasTile(1, 1), BlockModel.CUBE, false),
-    SNOW(new AtlasTile(3, 1), new AtlasTile(3,1),new AtlasTile(3,1), BlockModel.CUBE, true, 0.5f),
-    CACTUS(new AtlasTile(0, 0), new AtlasTile(0,0),new AtlasTile(0,0), BlockModel.CUBE, true, 0.5f),
+    SNOW(new AtlasTile(3, 1), new AtlasTile(3,1),new AtlasTile(3,1), BlockModel.CUBE, true, 0.5f, 0),
+    CACTUS(new AtlasTile(0, 0), new AtlasTile(0,0),new AtlasTile(0,0), BlockModel.CUBE, true, 0.5f, 0),
     FLOWER(new AtlasTile(2, 1), BlockModel.CROSS, false),
+    GLOWSTONE(new AtlasTile(4, 2), new AtlasTile(4,2),new AtlasTile(4,2), BlockModel.CUBE, true, 0.5f, 15),
     WATER(new AtlasTile(5, 0), BlockModel.CUBE, false, 0.4f);
 
     private final AtlasTile topTexture;
@@ -18,6 +19,7 @@ public enum BlockType {
     private BlockModel model;
     private final boolean opaque;
     private final float topOffset;
+    private final int emittedLight;
     private static final float FULL_BLOCK_TOP =
             0.5f;
 
@@ -32,15 +34,16 @@ public enum BlockType {
             AtlasTile bottomTexture,
             BlockModel model,
             boolean opaque,
-            float topOffset
+            float topOffset,
+            int emittedLight
     ) {
         this.topTexture = topTexture;
         this.sideTexture = sideTexture;
         this.bottomTexture = bottomTexture;
-
         this.model = model;
         this.opaque = opaque;
         this.topOffset = topOffset;
+        this.emittedLight = emittedLight;
     }
 
     BlockType(
@@ -55,7 +58,8 @@ public enum BlockType {
                 texture,
                 model,
                 opaque,
-                FULL_BLOCK_TOP
+                FULL_BLOCK_TOP,
+                0
         );
     }
 
@@ -71,7 +75,8 @@ public enum BlockType {
                 texture,
                 model,
                 opaque,
-                topOffset
+                topOffset,
+                0
         );
     }
 
@@ -116,5 +121,9 @@ public enum BlockType {
     }
     public float getTopOffset() {
         return topOffset;
+    }
+
+    public int getEmittedLight() {
+        return emittedLight;
     }
 }

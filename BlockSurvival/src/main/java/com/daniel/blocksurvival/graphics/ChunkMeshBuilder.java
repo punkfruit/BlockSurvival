@@ -553,12 +553,24 @@ public class ChunkMeshBuilder {
             float z,
             BlockType type
     ) {
-        float skyLight =
-                world.getSkyLight(
-                        (int) x,
-                        (int) y,
-                        (int) z
+        int sky =
+                world.getSkyLight((int) x, (int) y, (int) z);
+
+        int block =
+                world.getBlockLight((int) x, (int) y, (int) z);
+
+        float light =
+                Math.max(
+                        sky,
+                        block
                 ) / 15.0f;
+
+        light =
+                Math.max(
+                        light,
+                        type.getEmittedLight() /
+                                15.0f
+                );
         /*
          * First diagonal quad.
          */
@@ -574,7 +586,7 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 1.0f,
-                skyLight
+                light
         );
 
         /*
@@ -592,7 +604,7 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 1.0f,
-                skyLight
+                light
         );
 
     }
@@ -613,12 +625,32 @@ public class ChunkMeshBuilder {
                 z
         );
 
-        float skyLight =
+        int sky =
                 world.getSkyLight(
                         x,
                         y,
-                        z + 1
+                        z+1
+                );
+
+        int block =
+                world.getBlockLight(
+                        x,
+                        y,
+                        z+1
+                );
+
+        float light =
+                Math.max(
+                        sky,
+                        block
                 ) / 15.0f;
+
+        light =
+                Math.max(
+                        light,
+                        type.getEmittedLight() /
+                                15.0f
+                );
         addFace(
                 x - 0.5f, y + topOffset, z + 0.5f,
                 x - 0.5f, y - 0.5f, z + 0.5f,
@@ -631,7 +663,7 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                skyLight
+                light
         );
     }
 
@@ -651,12 +683,32 @@ public class ChunkMeshBuilder {
                 z
         );
 
-        float skyLight =
+        int sky =
                 world.getSkyLight(
                         x,
                         y,
-                        z - 1
+                        z -1
+                );
+
+        int block =
+                world.getBlockLight(
+                        x,
+                        y,
+                        z-1
+                );
+
+        float light =
+                Math.max(
+                        sky,
+                        block
                 ) / 15.0f;
+
+        light =
+                Math.max(
+                        light,
+                        type.getEmittedLight() /
+                                15.0f
+                );
         addFace(
                 x + 0.5f, y + topOffset, z - 0.5f,
                 x + 0.5f, y - 0.5f, z - 0.5f,
@@ -669,7 +721,7 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                skyLight
+                light
         );
     }
 
@@ -689,12 +741,31 @@ public class ChunkMeshBuilder {
                 y,
                 z
         );
-        float skyLight =
+        int sky =
                 world.getSkyLight(
-                        x - 1,
+                        x-1,
                         y,
                         z
+                );
+
+        int block =
+                world.getBlockLight(
+                        x-1,
+                        y,
+                        z
+                );
+
+        float light =
+                Math.max(
+                        sky,
+                        block
                 ) / 15.0f;
+        light =
+                Math.max(
+                        light,
+                        type.getEmittedLight() /
+                                15.0f
+                );
         addFace(
                 x - 0.5f, y + topOffset, z - 0.5f,
                 x - 0.5f, y - 0.5f, z - 0.5f,
@@ -707,7 +778,7 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                skyLight
+                light
         );
     }
 
@@ -727,12 +798,31 @@ public class ChunkMeshBuilder {
                 y,
                 z
         );
-        float skyLight =
+        int sky =
                 world.getSkyLight(
-                        x + 1,
+                        x+1,
                         y,
                         z
+                );
+
+        int block =
+                world.getBlockLight(
+                        x+1,
+                        y,
+                        z
+                );
+
+        float light =
+                Math.max(
+                        sky,
+                        block
                 ) / 15.0f;
+        light =
+                Math.max(
+                        light,
+                        type.getEmittedLight() /
+                                15.0f
+                );
         addFace(
                 x + 0.5f, y + topOffset, z + 0.5f,
                 x + 0.5f, y - 0.5f, z + 0.5f,
@@ -745,7 +835,7 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                skyLight
+                light
         );
     }
 
@@ -766,12 +856,31 @@ public class ChunkMeshBuilder {
                 z
         );
 
-        float skyLight =
+        int sky =
                 world.getSkyLight(
                         x,
                         y + 1,
                         z
+                );
+
+        int block =
+                world.getBlockLight(
+                        x,
+                        y + 1,
+                        z
+                );
+
+        float light =
+                Math.max(
+                        sky,
+                        block
                 ) / 15.0f;
+        light =
+                Math.max(
+                        light,
+                        type.getEmittedLight() /
+                                15.0f
+                );
 
         addFace(
                 x - 0.5f, y + topOffset, z - 0.5f,
@@ -785,7 +894,7 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                skyLight
+                light
         );
     }
 
@@ -804,12 +913,31 @@ public class ChunkMeshBuilder {
                 y,
                 z
         );
-        float skyLight =
+        int sky =
                 world.getSkyLight(
                         x,
                         y - 1,
                         z
+                );
+
+        int block =
+                world.getBlockLight(
+                        x,
+                        y - 1,
+                        z
+                );
+
+        float light =
+                Math.max(
+                        sky,
+                        block
                 ) / 15.0f;
+        light =
+                Math.max(
+                        light,
+                        type.getEmittedLight() /
+                                15.0f
+                );
         addFace(
                 x - 0.5f, y - 0.5f, z + 0.5f,
                 x - 0.5f, y - 0.5f, z - 0.5f,
@@ -822,7 +950,7 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                skyLight
+                light
         );
     }
 

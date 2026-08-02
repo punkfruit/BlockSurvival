@@ -9,10 +9,7 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
 import java.nio.IntBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
@@ -30,8 +27,26 @@ public class Main {
 
     private static final int WORLD_SEED = 33333;
 
+    public final World world = new World(); //setting public temp
+
+    private final SaveManager saveManager =
+            new SaveManager("World1");
+
     private final TerrainGenerator terrainGenerator =
             new TerrainGenerator(WORLD_SEED);
+
+    private final LightEngine lightEngine =
+            new LightEngine(
+                    terrainGenerator
+            );
+
+    private final ChunkWorker chunkWorker =
+            new ChunkWorker(
+                    world,
+                    terrainGenerator,
+                    lightEngine,
+                    saveManager
+            );
 
     private boolean removeBlockRequested = false;
 
@@ -51,20 +66,9 @@ public class Main {
     private int framebufferWidth = 1280;
     private int framebufferHeight = 720;
 
-    public final World world = new World(); //setting public temp
-
-    private final SaveManager saveManager =
-            new SaveManager("World1");
-
-    private final ChunkWorker chunkWorker =
-            new ChunkWorker(
-                    world,
-                    terrainGenerator,
-                    saveManager
-            );
-
-    private final ChunkMeshBuilder chunkMeshBuilder =
+    private final ChunkMeshBuilder immediateMeshBuilder =
             new ChunkMeshBuilder();
+
 
     private final Map<Chunk, ChunkRenderData> chunkMeshes =
             new HashMap<>();
@@ -826,15 +830,6 @@ public class Main {
             int chunkY,
             int chunkZ
     ) {
-        /*
-        System.out.println(
-                "Rebuilding chunk: " +
-                        chunkX + ", " +
-                        chunkY + ", " +
-                        chunkZ
-        );
-
-         */
         Chunk chunk =
                 world.getChunk(
                         chunkX,
@@ -842,35 +837,19 @@ public class Main {
                         chunkZ
                 );
 
-        if (chunk == null) {
+        if (
+                chunk == null ||
+                        !chunk.hasTerrain()
+        ) {
             return;
         }
 
-        ChunkRenderData oldMesh =
-                chunkMeshes.remove(chunk);
-
-        if (oldMesh != null) {
-            oldMesh.destroy();
-        }
-
-        if (chunk.isEmpty()) {
-            return;
-        }
-
-        ChunkMeshData meshData =
-                chunkMeshBuilder.build(
-                        world,
-                        chunk
-                );
-
-        ChunkRenderData newMesh =
-                ChunkRenderData.fromMeshData(
-                        meshData
-                );
-
-        chunkMeshes.put(
-                chunk,
-                newMesh
+        /*
+         * Keep the existing GPU mesh visible while a new
+         * CPU-side mesh is built in the background.
+         */
+        chunkWorker.requestRemesh(
+                chunk
         );
     }
 
@@ -983,11 +962,11 @@ public class Main {
                 ) {
                     queueChunk(
                             chunkX,
-                            chunkBelow,
+                            chunkAbove,
                             chunkZ,
                             surfacePriority +
                                     Math.abs(
-                                            chunkBelow +
+                                            chunkAbove -
                                                     playerChunkY
                                     )
                     );
@@ -1560,9 +1539,18 @@ vec4 textureColor =
             return;
         }
 
+
+
         int blockX = currentRaycast.hitX();
         int blockY = currentRaycast.hitY();
         int blockZ = currentRaycast.hitZ();
+
+        BlockType oldBlock =
+                world.getBlock(
+                        blockX,
+                        blockY,
+                        blockZ
+                );
 
         System.out.println(
                 "Breaking block at: " +
@@ -1577,6 +1565,31 @@ vec4 textureColor =
                 blockZ,
                 null
         );
+
+        rebuildEditedChunkImmediately(
+                blockX,
+                blockY,
+                blockZ
+        );
+
+        Set<Chunk> lightChangedChunks =
+                lightEngine.blockChanged(
+                        world,
+                        blockX,
+                        blockY,
+                        blockZ,
+                        oldBlock,
+                        null
+                );
+
+        for (
+                Chunk changedChunk :
+                lightChangedChunks
+        ) {
+            chunkWorker.requestRemesh(
+                    changedChunk
+            );
+        }
 
         rebuildChunksAroundBlock(
                 blockX,
@@ -1606,6 +1619,13 @@ vec4 textureColor =
 
         int placementZ =
                 currentRaycast.placementZ();
+
+        BlockType oldBlock =
+                world.getBlock(
+                        placementX,
+                        placementY,
+                        placementZ
+                );
 
         System.out.println(
                 "Placing " +
@@ -1637,6 +1657,31 @@ vec4 textureColor =
                 placementZ,
                 selectedBlock
         );
+
+        rebuildEditedChunkImmediately(
+                placementX,
+                placementY,
+                placementZ
+        );
+
+        Set<Chunk> lightChangedChunks =
+                lightEngine.blockChanged(
+                        world,
+                        placementX,
+                        placementY,
+                        placementZ,
+                        oldBlock,
+                        selectedBlock
+                );
+
+        for (
+                Chunk changedChunk :
+                lightChangedChunks
+        ) {
+            chunkWorker.requestRemesh(
+                    changedChunk
+            );
+        }
 
         rebuildChunksAroundBlock(
                 placementX,
@@ -1799,6 +1844,82 @@ vec4 textureColor =
                     );
 
 
+        }
+    }
+
+    /*
+     * TODO:
+     * Immediate rebuild currently uses the previous lighting state.
+     *
+     * In the future, lighting updates should run through a
+     * double-buffered lighting pipeline so geometry and lighting
+     * become visible simultaneously.
+     */
+    private void rebuildEditedChunkImmediately(
+            int worldX,
+            int worldY,
+            int worldZ
+    ) {
+        int chunkX =
+                Math.floorDiv(
+                        worldX,
+                        Chunk.SIZE
+                );
+
+        int chunkY =
+                Math.floorDiv(
+                        worldY,
+                        Chunk.SIZE
+                );
+
+        int chunkZ =
+                Math.floorDiv(
+                        worldZ,
+                        Chunk.SIZE
+                );
+
+        Chunk chunk =
+                world.getChunk(
+                        chunkX,
+                        chunkY,
+                        chunkZ
+                );
+
+        if (
+                chunk == null ||
+                        !chunk.hasTerrain()
+        ) {
+            return;
+        }
+
+        /*
+         * Build the replacement first.
+         *
+         * The current GPU mesh remains visible during this work,
+         * so the chunk never disappears.
+         */
+        ChunkMeshData meshData =
+                immediateMeshBuilder.build(
+                        world,
+                        chunk
+                );
+
+        ChunkRenderData replacement =
+                ChunkRenderData.fromMeshData(
+                        meshData
+                );
+
+        /*
+         * Atomically replace the visible mesh.
+         */
+        ChunkRenderData previous =
+                chunkMeshes.put(
+                        chunk,
+                        replacement
+                );
+
+        if (previous != null) {
+            previous.destroy();
         }
     }
 

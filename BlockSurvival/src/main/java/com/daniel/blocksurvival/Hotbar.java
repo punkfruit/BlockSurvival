@@ -18,7 +18,7 @@ public class Hotbar {
             BlockType.WOOD,
             BlockType.LEAVES,
             BlockType.SNOW,
-            BlockType.CACTUS,
+            BlockType.GLOWSTONE,
             BlockType.WATER
     };
 

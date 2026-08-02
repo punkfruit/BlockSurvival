@@ -164,6 +164,47 @@ public class World {
         );
     }
 
+    public int getBlockLight(
+            int worldX,
+            int worldY,
+            int worldZ
+    ) {
+        Chunk chunk =
+                getChunkAtWorldBlock(
+                        worldX,
+                        worldY,
+                        worldZ
+                );
+
+        if (chunk == null) {
+            return 0;
+        }
+
+        int localX =
+                Math.floorMod(
+                        worldX,
+                        Chunk.SIZE
+                );
+
+        int localY =
+                Math.floorMod(
+                        worldY,
+                        Chunk.SIZE
+                );
+
+        int localZ =
+                Math.floorMod(
+                        worldZ,
+                        Chunk.SIZE
+                );
+
+        return chunk.getBlockLight(
+                localX,
+                localY,
+                localZ
+        );
+    }
+
     public void setSkyLight(
             int worldX,
             int worldY,
@@ -248,5 +289,79 @@ public class World {
         return block == null ||
                 !block.isOpaque();
     }
+
+
+    public void setBlockLight(
+            int worldX,
+            int worldY,
+            int worldZ,
+            int lightLevel
+    ) {
+        Chunk chunk =
+                getChunkAtWorldBlock(
+                        worldX,
+                        worldY,
+                        worldZ
+                );
+
+        if (chunk == null) {
+            return;
+        }
+
+        int localX =
+                Math.floorMod(
+                        worldX,
+                        Chunk.SIZE
+                );
+
+        int localY =
+                Math.floorMod(
+                        worldY,
+                        Chunk.SIZE
+                );
+
+        int localZ =
+                Math.floorMod(
+                        worldZ,
+                        Chunk.SIZE
+                );
+
+        chunk.setBlockLight(
+                localX,
+                localY,
+                localZ,
+                lightLevel
+        );
+    }
+    public boolean allowsBlockLight(
+            int worldX,
+            int worldY,
+            int worldZ
+    ) {
+        Chunk chunk =
+                getChunkAtWorldBlock(
+                        worldX,
+                        worldY,
+                        worldZ
+                );
+
+        if (
+                chunk == null ||
+                        !chunk.hasTerrain()
+        ) {
+            return false;
+        }
+
+        BlockType block =
+                getBlock(
+                        worldX,
+                        worldY,
+                        worldZ
+                );
+
+        return block == null ||
+                !block.isOpaque();
+    }
+
 
 }

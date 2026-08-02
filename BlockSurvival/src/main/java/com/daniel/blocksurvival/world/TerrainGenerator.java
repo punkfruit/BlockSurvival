@@ -2,10 +2,7 @@ package com.daniel.blocksurvival.world;
 
 import com.daniel.blocksurvival.world.noise.ValueNoise;
 import com.daniel.blocksurvival.world.noise.ValueNoise3D;
-import java.util.HashSet;
-import java.util.Set;
 
-import java.util.ArrayDeque;
 
 public class TerrainGenerator {
 
@@ -24,16 +21,7 @@ public class TerrainGenerator {
     private static final float DESERT_FOREST_BORDER = 0.33f;
     private static final float FOREST_SNOW_BORDER = 0.66f;
 
-    /*
-     * One position waiting to spread its skylight
-     * into neighboring cells.
-     */
-    private record LightNode(
-            int worldX,
-            int worldY,
-            int worldZ
-    ) {
-    }
+
     /*
      * Total width of each transition zone.
      *
@@ -108,9 +96,6 @@ public class TerrainGenerator {
 
 
 
-        chunk.setState(
-                ChunkState.GENERATED
-        );
     }
     private void generateTerrain(
             World world,
@@ -278,259 +263,13 @@ public class TerrainGenerator {
         }
     }
 
-    private void generateInitialSkyLight(
-            Chunk chunk
-    ) {
-        int chunkOriginX =
-                chunk.getWorldOriginX();
-
-        int chunkOriginY =
-                chunk.getWorldOriginY();
-
-        int chunkOriginZ =
-                chunk.getWorldOriginZ();
-
-        for (
-                int localX = 0;
-                localX < Chunk.SIZE;
-                localX++
-        ) {
-            for (
-                    int localZ = 0;
-                    localZ < Chunk.SIZE;
-                    localZ++
-            ) {
-                int worldX =
-                        chunkOriginX +
-                                localX;
-
-                int worldZ =
-                        chunkOriginZ +
-                                localZ;
-
-                int terrainHeight =
-                        getTerrainHeight(
-                                worldX,
-                                worldZ
-                        );
-
-                for (
-                        int localY = 0;
-                        localY < Chunk.SIZE;
-                        localY++
-                ) {
-                    int worldY =
-                            chunkOriginY +
-                                    localY;
-
-                    BlockType block =
-                            chunk.getBlock(
-                                    localX,
-                                    localY,
-                                    localZ
-                            );
-
-                    boolean lightCanExistHere =
-                            block == null ||
-                                    !block.isOpaque();
-
-                    /*
-                     * Only open cells strictly above the terrain
-                     * begin with direct sunlight.
-                     *
-                     * Cave entrances underneath the surface begin
-                     * dark, then receive attenuated light through
-                     * flood filling.
-                     */
-                    int lightLevel =
-                            worldY > terrainHeight &&
-                                    lightCanExistHere
-                                    ? 15
-                                    : 0;
-
-                    chunk.setSkyLight(
-                            localX,
-                            localY,
-                            localZ,
-                            lightLevel
-                    );
-                }
-            }
-        }
-    }
-
-    private Set<Chunk> propagateSkyLight(
-            World world,
-            Chunk sourceChunk
-    ) {
-        ArrayDeque<LightNode> lightQueue =
-                new ArrayDeque<>();
-        Set<Chunk> changedChunks =
-                new HashSet<>();
-
-        int chunkOriginX =
-                sourceChunk.getWorldOriginX();
-
-        int chunkOriginY =
-                sourceChunk.getWorldOriginY();
-
-        int chunkOriginZ =
-                sourceChunk.getWorldOriginZ();
-
-        /*
-         * Seed the queue using all direct-sunlight cells from
-         * the source chunk.
-         */
-        for (
-                int localX = 0;
-                localX < Chunk.SIZE;
-                localX++
-        ) {
-            for (
-                    int localY = 0;
-                    localY < Chunk.SIZE;
-                    localY++
-            ) {
-                for (
-                        int localZ = 0;
-                        localZ < Chunk.SIZE;
-                        localZ++
-                ) {
-                    if (
-                            sourceChunk.getSkyLight(
-                                    localX,
-                                    localY,
-                                    localZ
-                            ) != 15
-                    ) {
-                        continue;
-                    }
-
-                    lightQueue.addLast(
-                            new LightNode(
-                                    chunkOriginX + localX,
-                                    chunkOriginY + localY,
-                                    chunkOriginZ + localZ
-                            )
-                    );
-                }
-            }
-        }
-
-        int[][] directions = {
-                {-1, 0, 0},
-                {1, 0, 0},
-                {0, -1, 0},
-                {0, 1, 0},
-                {0, 0, -1},
-                {0, 0, 1}
-        };
-
-        while (!lightQueue.isEmpty()) {
-            LightNode current =
-                    lightQueue.removeFirst();
-
-            int currentLight =
-                    world.getSkyLight(
-                            current.worldX(),
-                            current.worldY(),
-                            current.worldZ()
-                    );
-
-            if (currentLight <= 1) {
-                continue;
-            }
-
-            int nextLight =
-                    currentLight - 1;
-
-            for (int[] direction : directions) {
-                int neighborX =
-                        current.worldX() +
-                                direction[0];
-
-                int neighborY =
-                        current.worldY() +
-                                direction[1];
-
-                int neighborZ =
-                        current.worldZ() +
-                                direction[2];
-
-                if (
-                        neighborY <
-                                WorldGenerationSettings.MIN_WORLD_Y
-                ) {
-                    continue;
-                }
-
-                if (!world.allowsSkyLight(
-                        neighborX,
-                        neighborY,
-                        neighborZ
-                )) {
-                    continue;
-                }
-
-                int existingLight =
-                        world.getSkyLight(
-                                neighborX,
-                                neighborY,
-                                neighborZ
-                        );
-
-                if (nextLight <= existingLight) {
-                    continue;
-                }
-                Chunk changedChunk =
-                        world.getChunkAtWorldBlock(
-                                neighborX,
-                                neighborY,
-                                neighborZ
-                        );
 
 
-                world.setSkyLight(
-                        neighborX,
-                        neighborY,
-                        neighborZ,
-                        nextLight
-                );
 
-                if (
-                        changedChunk != null &&
-                                changedChunk != sourceChunk
-                ) {
-                    changedChunks.add(
-                            changedChunk
-                    );
-                }
 
-                lightQueue.addLast(
-                        new LightNode(
-                                neighborX,
-                                neighborY,
-                                neighborZ
-                        )
-                );
-            }
-        }
-        return changedChunks;
-    }
 
-    public Set<Chunk> generateSkyLight(
-            World world,
-            Chunk chunk
-    ) {
-        generateInitialSkyLight(
-                chunk
-        );
 
-        return propagateSkyLight(
-                world,
-                chunk
-        );
-    }
+
 
     private BlockType getTerrainBlockType(
             int y,
@@ -902,7 +641,7 @@ public class TerrainGenerator {
         return 2 + (int) Math.floorMod(hash, 3L);
     }
 
-    private int getTerrainHeight(
+    public int getTerrainHeight(
             int worldX,
             int worldZ
     ) {
