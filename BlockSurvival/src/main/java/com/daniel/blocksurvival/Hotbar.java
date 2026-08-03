@@ -14,7 +14,7 @@ public class Hotbar {
             BlockType.GRASS,
             BlockType.DIRT,
             BlockType.STONE,
-            BlockType.SAND,
+            BlockType.TORCH,
             BlockType.WOOD,
             BlockType.LEAVES,
             BlockType.SNOW,

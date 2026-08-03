@@ -38,6 +38,13 @@ public class ChunkMeshBuilder {
                 new FaceAO(1.0f, 1.0f, 1.0f, 1.0f);
     }
 
+    private record ModelVertex(
+            float x,
+            float y,
+            float z
+    ) {
+    }
+
     public ChunkMeshData build(World world, Chunk chunk) {
         opaqueVertices.clear();
         opaqueIndices.clear();
@@ -88,7 +95,6 @@ public class ChunkMeshBuilder {
                      */
 
                     switch (type.getModel()) {
-
                         case CUBE -> addCube(
                                 world,
                                 worldX,
@@ -104,6 +110,19 @@ public class ChunkMeshBuilder {
                                 worldY,
                                 worldZ,
                                 type
+                        );
+
+                        case TORCH -> addTorch(
+                                world,
+                                worldX,
+                                worldY,
+                                worldZ,
+                                type,
+                                world.getBlockDirection(
+                                        worldX,
+                                        worldY,
+                                        worldZ
+                                )
                         );
                     }
                 }
@@ -559,15 +578,15 @@ public class ChunkMeshBuilder {
         int block =
                 world.getBlockLight((int) x, (int) y, (int) z);
 
-        float light =
-                Math.max(
-                        sky,
-                        block
-                ) / 15.0f;
+        float skyLight =
+                sky / 15.0f;
 
-        light =
+        float blockLight =
+                block / 15.0f;
+
+        blockLight =
                 Math.max(
-                        light,
+                        blockLight,
                         type.getEmittedLight() /
                                 15.0f
                 );
@@ -586,7 +605,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 1.0f,
-                light
+                skyLight,
+                blockLight
         );
 
         /*
@@ -604,7 +624,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 1.0f,
-                light
+                skyLight,
+                blockLight
         );
 
     }
@@ -639,15 +660,15 @@ public class ChunkMeshBuilder {
                         z+1
                 );
 
-        float light =
-                Math.max(
-                        sky,
-                        block
-                ) / 15.0f;
+        float skyLight =
+                sky / 15.0f;
 
-        light =
+        float blockLight =
+                block / 15.0f;
+
+        blockLight =
                 Math.max(
-                        light,
+                        blockLight,
                         type.getEmittedLight() /
                                 15.0f
                 );
@@ -663,7 +684,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                light
+                skyLight,
+                blockLight
         );
     }
 
@@ -697,15 +719,15 @@ public class ChunkMeshBuilder {
                         z-1
                 );
 
-        float light =
-                Math.max(
-                        sky,
-                        block
-                ) / 15.0f;
+        float skyLight =
+                sky / 15.0f;
 
-        light =
+        float blockLight =
+                block / 15.0f;
+
+        blockLight =
                 Math.max(
-                        light,
+                        blockLight,
                         type.getEmittedLight() /
                                 15.0f
                 );
@@ -721,7 +743,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                light
+                skyLight,
+                blockLight
         );
     }
 
@@ -755,14 +778,14 @@ public class ChunkMeshBuilder {
                         z
                 );
 
-        float light =
+        float skyLight =
+                sky / 15.0f;
+
+        float blockLight =
+                block / 15.0f;
+        blockLight =
                 Math.max(
-                        sky,
-                        block
-                ) / 15.0f;
-        light =
-                Math.max(
-                        light,
+                        blockLight,
                         type.getEmittedLight() /
                                 15.0f
                 );
@@ -778,7 +801,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                light
+                skyLight,
+                blockLight
         );
     }
 
@@ -812,14 +836,14 @@ public class ChunkMeshBuilder {
                         z
                 );
 
-        float light =
+        float skyLight =
+                sky / 15.0f;
+
+        float blockLight =
+                block / 15.0f;
+        blockLight =
                 Math.max(
-                        sky,
-                        block
-                ) / 15.0f;
-        light =
-                Math.max(
-                        light,
+                        blockLight,
                         type.getEmittedLight() /
                                 15.0f
                 );
@@ -835,7 +859,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                light
+                skyLight,
+                blockLight
         );
     }
 
@@ -870,14 +895,14 @@ public class ChunkMeshBuilder {
                         z
                 );
 
-        float light =
+        float skyLight =
+                sky / 15.0f;
+
+        float blockLight =
+                block / 15.0f;
+        blockLight =
                 Math.max(
-                        sky,
-                        block
-                ) / 15.0f;
-        light =
-                Math.max(
-                        light,
+                        blockLight,
                         type.getEmittedLight() /
                                 15.0f
                 );
@@ -894,7 +919,8 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                light
+                skyLight,
+                blockLight
         );
     }
 
@@ -927,14 +953,14 @@ public class ChunkMeshBuilder {
                         z
                 );
 
-        float light =
+        float skyLight =
+                sky / 15.0f;
+
+        float blockLight =
+                block / 15.0f;
+        blockLight =
                 Math.max(
-                        sky,
-                        block
-                ) / 15.0f;
-        light =
-                Math.max(
-                        light,
+                        blockLight,
                         type.getEmittedLight() /
                                 15.0f
                 );
@@ -950,8 +976,173 @@ public class ChunkMeshBuilder {
                 0.0f,
                 0.0f,
                 0.0f,
-                light
+                skyLight,
+                blockLight
         );
+    }
+
+    /*
+     * Adds a face while sampling only a chosen rectangle
+     * inside the supplied atlas tile.
+     *
+     * UV values use a local 0.0–1.0 range:
+     *
+     * 0.0 = left/top edge of the tile
+     * 1.0 = right/bottom edge of the tile
+     */
+    private void addFaceUV(
+            float x1, float y1, float z1,
+            float x2, float y2, float z2,
+            float x3, float y3, float z3,
+            float x4, float y4, float z4,
+            AtlasTile tile,
+            float minimumU,
+            float minimumV,
+            float maximumU,
+            float maximumV,
+            FaceAO ao,
+            RenderMaterial material,
+            float bend1,
+            float bend2,
+            float bend3,
+            float bend4,
+            float skyLight,
+            float blockLight
+    ) {
+        faceCount++;
+
+        int firstVertexIndex =
+                currentVertices.size() / 10;
+
+        float tileSize =
+                BlockType.getTileSize();
+
+        float tileOriginU =
+                tile.column() * tileSize;
+
+        float tileOriginV =
+                tile.row() * tileSize;
+
+        /*
+         * Convert tile-local UV coordinates into complete
+         * atlas UV coordinates.
+         */
+        float atlasMinimumU =
+                tileOriginU +
+                        minimumU * tileSize;
+
+        float atlasMinimumV =
+                tileOriginV +
+                        minimumV * tileSize;
+
+        float atlasMaximumU =
+                tileOriginU +
+                        maximumU * tileSize;
+
+        float atlasMaximumV =
+                tileOriginV +
+                        maximumV * tileSize;
+
+        addVertex(
+                x1, y1, z1,
+                atlasMinimumU,
+                atlasMinimumV,
+                ao.vertex1(),
+                material,
+                bend1,
+                skyLight,
+                blockLight
+        );
+
+        addVertex(
+                x2, y2, z2,
+                atlasMinimumU,
+                atlasMaximumV,
+                ao.vertex2(),
+                material,
+                bend2,
+                skyLight,
+                blockLight
+        );
+
+        addVertex(
+                x3, y3, z3,
+                atlasMaximumU,
+                atlasMaximumV,
+                ao.vertex3(),
+                material,
+                bend3,
+                skyLight,
+                blockLight
+        );
+
+        addVertex(
+                x4, y4, z4,
+                atlasMaximumU,
+                atlasMinimumV,
+                ao.vertex4(),
+                material,
+                bend4,
+                skyLight,
+                blockLight
+        );
+
+        /*
+         * Preserve your ambient-occlusion diagonal selection.
+         */
+        if (
+                ao.vertex1() + ao.vertex3() >
+                        ao.vertex2() + ao.vertex4()
+        ) {
+            currentIndices.add(
+                    firstVertexIndex
+            );
+
+            currentIndices.add(
+                    firstVertexIndex + 1
+            );
+
+            currentIndices.add(
+                    firstVertexIndex + 3
+            );
+
+            currentIndices.add(
+                    firstVertexIndex + 1
+            );
+
+            currentIndices.add(
+                    firstVertexIndex + 2
+            );
+
+            currentIndices.add(
+                    firstVertexIndex + 3
+            );
+        }
+        else {
+            currentIndices.add(
+                    firstVertexIndex
+            );
+
+            currentIndices.add(
+                    firstVertexIndex + 1
+            );
+
+            currentIndices.add(
+                    firstVertexIndex + 2
+            );
+
+            currentIndices.add(
+                    firstVertexIndex + 2
+            );
+
+            currentIndices.add(
+                    firstVertexIndex + 3
+            );
+
+            currentIndices.add(
+                    firstVertexIndex
+            );
+        }
     }
 
     private void addFace(
@@ -966,92 +1157,28 @@ public class ChunkMeshBuilder {
             float bend2,
             float bend3,
             float bend4,
-            float skyLight
+            float skyLight,
+            float blockLight
     ) {
-        faceCount++;
-        int firstVertexIndex =
-                currentVertices.size() / 9;
-
-        float tileSize = BlockType.getTileSize();
-
-        float atlasX =
-                tile.column() * tileSize;
-
-        float atlasY =
-                tile.row() * tileSize;
-
-        /*
-         * Position plus final atlas UV coordinate.
-         */
-
-
-        addVertex(
+        addFaceUV(
                 x1, y1, z1,
-                atlasX,
-                atlasY,
-                ao.vertex1,
+                x2, y2, z2,
+                x3, y3, z3,
+                x4, y4, z4,
+                tile,
+                0.0f,
+                0.0f,
+                1.0f,
+                1.0f,
+                ao,
                 material,
                 bend1,
-                skyLight
+                bend2,
+                bend3,
+                bend4,
+                skyLight,
+                blockLight
         );
-
-        addVertex(
-                x2, y2, z2,
-                atlasX,
-                atlasY + tileSize,
-                ao.vertex2,
-                material,bend2,
-                skyLight
-        );
-
-        addVertex(
-                x3, y3, z3,
-                atlasX + tileSize,
-                atlasY + tileSize,
-                ao.vertex3,
-                material,bend3,
-                skyLight
-        );
-
-        addVertex(
-                x4, y4, z4,
-                atlasX + tileSize,
-                atlasY,
-                ao.vertex4,
-                material,bend4,
-                skyLight
-        );
-
-        /*
-         * Choose the diagonal that produces the smoothest
-         * interpolation between AO values.
-         */
-        if (ao.vertex1() + ao.vertex3() >
-                ao.vertex2() + ao.vertex4()) {
-
-            /*
-             * Alternate diagonal: vertex 2 to vertex 4.
-             */
-            currentIndices.add(firstVertexIndex);
-            currentIndices.add(firstVertexIndex + 1);
-            currentIndices.add(firstVertexIndex + 3);
-
-            currentIndices.add(firstVertexIndex + 1);
-            currentIndices.add(firstVertexIndex + 2);
-            currentIndices.add(firstVertexIndex + 3);
-
-        } else {
-
-            /*
-             * Default diagonal: vertex 1 to vertex 3.
-             */
-            currentIndices.add(firstVertexIndex);
-            currentIndices.add(firstVertexIndex + 1);
-            currentIndices.add(firstVertexIndex + 2);
-            currentIndices.add(firstVertexIndex + 2);
-            currentIndices.add(firstVertexIndex + 3);
-            currentIndices.add(firstVertexIndex);
-        }
     }
 
     private void addVertex(
@@ -1063,7 +1190,8 @@ public class ChunkMeshBuilder {
             float ao,
             RenderMaterial material,
             float bendWeight,
-            float skyLight
+            float skyLight,
+            float blockLight
     )
     {
         currentVertices.add(x);
@@ -1075,6 +1203,7 @@ public class ChunkMeshBuilder {
         currentVertices.add(material.getId());
         currentVertices.add(bendWeight);
         currentVertices.add(skyLight);
+        currentVertices.add(blockLight);
     }
 
     private float[] convertVerticesToArray(
@@ -1170,5 +1299,582 @@ public class ChunkMeshBuilder {
                         localY,
                         localZ
                 ) / 15.0f;
+    }
+
+    private ModelVertex transformTorchVertex(
+            float localX,
+            float localY,
+            float localZ,
+            int blockX,
+            int blockY,
+            int blockZ,
+            BlockDirection direction
+    ) {
+        /*
+         * Floor torches use the ordinary upright model.
+         */
+        if (direction == BlockDirection.UP) {
+            return new ModelVertex(
+                    blockX + localX,
+                    blockY + localY,
+                    blockZ + localZ
+            );
+        }
+
+        /*
+         * Pivot near the bottom of the torch.
+         *
+         * The model's bottom is local Y = -0.5.
+         */
+        float pivotY =
+                -0.5f;
+
+        float relativeY =
+                localY - pivotY;
+
+        /*
+         * Roughly 22.5 degrees.
+         *
+         * Increase this for a more dramatic wall lean.
+         */
+        float angle =
+                (float) Math.toRadians(
+                        22.5
+                );
+
+        float sine =
+                (float) Math.sin(
+                        angle
+                );
+
+        float cosine =
+                (float) Math.cos(
+                        angle
+                );
+
+        float rotatedX =
+                localX;
+
+        float rotatedY =
+                localY;
+
+        float rotatedZ =
+                localZ;
+
+        /*
+         * Rotate around the appropriate horizontal axis.
+         */
+        switch (direction) {
+            case NORTH -> {
+                rotatedY =
+                        pivotY +
+                                relativeY * cosine +
+                                localZ * sine;
+
+                rotatedZ =
+                        -relativeY * sine +
+                                localZ * cosine;
+            }
+
+            case SOUTH -> {
+                rotatedY =
+                        pivotY +
+                                relativeY * cosine -
+                                localZ * sine;
+
+                rotatedZ =
+                        relativeY * sine +
+                                localZ * cosine;
+            }
+
+            case EAST -> {
+                rotatedX =
+                        relativeY * sine +
+                                localX * cosine;
+
+                rotatedY =
+                        pivotY +
+                                relativeY * cosine -
+                                localX * sine;
+            }
+
+            case WEST -> {
+                rotatedX =
+                        -relativeY * sine +
+                                localX * cosine;
+
+                rotatedY =
+                        pivotY +
+                                relativeY * cosine +
+                                localX * sine;
+            }
+
+            case UP -> {
+                // Already handled above.
+            }
+        }
+
+        /*
+         * Move the entire tilted model toward its supporting wall.
+         */
+        float wallOffset =
+                0.55f;
+        float wallHeight =
+                1.0f / 16.0f;
+
+
+        switch (direction) {
+
+            case NORTH -> {
+                rotatedZ += wallOffset;
+                rotatedY += wallHeight;
+            }
+
+            case SOUTH -> {
+                rotatedZ -= wallOffset;
+                rotatedY += wallHeight;
+            }
+
+            case EAST -> {
+                rotatedX -= wallOffset;
+                rotatedY += wallHeight;
+            }
+
+            case WEST -> {
+                rotatedX += wallOffset;
+                rotatedY += wallHeight;
+            }
+        }
+
+        return new ModelVertex(
+                blockX + rotatedX,
+                blockY + rotatedY,
+                blockZ + rotatedZ
+        );
+    }
+
+    private void addTorch(
+            World world,
+            int x,
+            int y,
+            int z,
+            BlockType type,
+            BlockDirection direction
+    ) {
+
+
+
+
+        //determine shape
+        float halfWidth =
+                1/16f; //2 pixels wide, matches the texture
+
+        float bottom =
+                -0.5f;
+
+        float top =
+                0.25f; //perf
+
+        float skyLight =
+                world.getSkyLight(
+                        x,
+                        y,
+                        z
+                ) / 15.0f;
+
+        float blockLight =
+                Math.max(
+                        world.getBlockLight(
+                                x,
+                                y,
+                                z
+                        ),
+                        type.getEmittedLight()
+                ) / 15.0f;
+
+        AtlasTile tile =
+                type.getSideTexture();
+
+        /*
+         * Coordinates inside a 16×16 texture tile.
+         */
+        float torchMinimumU = //left to right
+                7.0f / 16.0f;  // Start after 7 empty pixels
+
+        float torchMaximumU =
+                9.0f / 16.0f;  // End at 9 (7 + 2 = 9)
+
+        float torchMinimumV = //top to bottom
+                5.0f / 16f;   //5 pixels down, start of main torch texture
+
+        float torchMaximumV = //Bottom
+                1.0f;
+
+        float capMinimumU =
+                7.0f / 16.0f;
+
+        float capMaximumU =
+                9.0f / 16.0f;
+
+        float capMinimumV =
+                3f / 16.0f; //3 pixels down, start of top of torch texture
+
+        float capMaximumV =
+                5.0f / 16.0f;
+
+
+
+
+        /*
+         * Front face: positive Z side.
+         */
+        ModelVertex front1 =
+                transformTorchVertex(
+                        -halfWidth,
+                        top,
+                        halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex front2 =
+                transformTorchVertex(
+                        -halfWidth,
+                        bottom,
+                        halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex front3 =
+                transformTorchVertex(
+                        halfWidth,
+                        bottom,
+                        halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex front4 =
+                transformTorchVertex(
+                        halfWidth,
+                        top,
+                        halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        /*
+         * Back face: negative Z side.
+         */
+        ModelVertex back1 =
+                transformTorchVertex(
+                        halfWidth,
+                        top,
+                        -halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex back2 =
+                transformTorchVertex(
+                        halfWidth,
+                        bottom,
+                        -halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex back3 =
+                transformTorchVertex(
+                        -halfWidth,
+                        bottom,
+                        -halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex back4 =
+                transformTorchVertex(
+                        -halfWidth,
+                        top,
+                        -halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        /*
+         * Left face: negative X side.
+         */
+        ModelVertex left1 =
+                transformTorchVertex(
+                        -halfWidth,
+                        top,
+                        -halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex left2 =
+                transformTorchVertex(
+                        -halfWidth,
+                        bottom,
+                        -halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex left3 =
+                transformTorchVertex(
+                        -halfWidth,
+                        bottom,
+                        halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex left4 =
+                transformTorchVertex(
+                        -halfWidth,
+                        top,
+                        halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        /*
+         * Right face: positive X side.
+         */
+        ModelVertex right1 =
+                transformTorchVertex(
+                        halfWidth,
+                        top,
+                        halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex right2 =
+                transformTorchVertex(
+                        halfWidth,
+                        bottom,
+                        halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex right3 =
+                transformTorchVertex(
+                        halfWidth,
+                        bottom,
+                        -halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex right4 =
+                transformTorchVertex(
+                        halfWidth,
+                        top,
+                        -halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        /*
+         * Top cap: all four vertices use the top Y value.
+         */
+        ModelVertex top1 =
+                transformTorchVertex(
+                        -halfWidth,
+                        top,
+                        -halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex top2 =
+                transformTorchVertex(
+                        -halfWidth,
+                        top,
+                        halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex top3 =
+                transformTorchVertex(
+                        halfWidth,
+                        top,
+                        halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        ModelVertex top4 =
+                transformTorchVertex(
+                        halfWidth,
+                        top,
+                        -halfWidth,
+                        x,
+                        y,
+                        z,
+                        direction
+                );
+
+        /*
+         * Front.
+         */
+        addFaceUV(
+                front1.x(), front1.y(), front1.z(),
+                front2.x(), front2.y(), front2.z(),
+                front3.x(), front3.y(), front3.z(),
+                front4.x(), front4.y(), front4.z(),
+                tile,
+                torchMinimumU,
+                torchMinimumV,
+                torchMaximumU,
+                torchMaximumV,
+                FaceAO.FULL_BRIGHT,
+                RenderMaterial.DEFAULT,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f,
+                skyLight,
+                blockLight
+        );
+
+        /*
+         * Back.
+         */
+        addFaceUV(
+                back1.x(), back1.y(), back1.z(),
+                back2.x(), back2.y(), back2.z(),
+                back3.x(), back3.y(), back3.z(),
+                back4.x(), back4.y(), back4.z(),
+                tile,
+                torchMinimumU,
+                torchMinimumV,
+                torchMaximumU,
+                torchMaximumV,
+                FaceAO.FULL_BRIGHT,
+                RenderMaterial.DEFAULT,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f,
+                skyLight,
+                blockLight
+        );
+
+        /*
+         * Left.
+         */
+        addFaceUV(
+                left1.x(), left1.y(), left1.z(),
+                left2.x(), left2.y(), left2.z(),
+                left3.x(), left3.y(), left3.z(),
+                left4.x(), left4.y(), left4.z(),
+                tile,
+                torchMinimumU,
+                torchMinimumV,
+                torchMaximumU,
+                torchMaximumV,
+                FaceAO.FULL_BRIGHT,
+                RenderMaterial.DEFAULT,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f,
+                skyLight,
+                blockLight
+        );
+
+        /*
+         * Right.
+         */
+        addFaceUV(
+                right1.x(), right1.y(), right1.z(),
+                right2.x(), right2.y(), right2.z(),
+                right3.x(), right3.y(), right3.z(),
+                right4.x(), right4.y(), right4.z(),
+                tile,
+                torchMinimumU,
+                torchMinimumV,
+                torchMaximumU,
+                torchMaximumV,
+                FaceAO.FULL_BRIGHT,
+                RenderMaterial.DEFAULT,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f,
+                skyLight,
+                blockLight
+        );
+
+
+        /*
+         * Top cap - precisely adjustable
+         */
+
+        addFaceUV(
+                top1.x(), top1.y(), top1.z(),
+                top2.x(), top2.y(), top2.z(),
+                top3.x(), top3.y(), top3.z(),
+                top4.x(), top4.y(), top4.z(),
+                tile,
+                capMinimumU,
+                capMinimumV,
+                capMaximumU,
+                capMaximumV,
+                FaceAO.FULL_BRIGHT,
+                RenderMaterial.DEFAULT,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f,
+                skyLight,
+                blockLight
+        );
     }
 }

@@ -11,6 +11,7 @@ public enum BlockType {
     CACTUS(new AtlasTile(0, 0), new AtlasTile(0,0),new AtlasTile(0,0), BlockModel.CUBE, true, 0.5f, 0),
     FLOWER(new AtlasTile(2, 1), BlockModel.CROSS, false),
     GLOWSTONE(new AtlasTile(4, 2), new AtlasTile(4,2),new AtlasTile(4,2), BlockModel.CUBE, true, 0.5f, 15),
+    TORCH(new AtlasTile(5, 2), new AtlasTile(5, 2), new AtlasTile(5, 2), BlockModel.TORCH, false, 0.5f, 14),
     WATER(new AtlasTile(5, 0), BlockModel.CUBE, false, 0.4f);
 
     private final AtlasTile topTexture;

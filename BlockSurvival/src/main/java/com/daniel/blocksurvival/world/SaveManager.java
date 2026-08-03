@@ -30,7 +30,7 @@ public class SaveManager {
      * If we change the save-file structure later,
      * we can increase this number.
      */
-    private static final int CHUNK_FILE_VERSION = 1;
+    private static final int CHUNK_FILE_VERSION = 2;
 
     /*
      * We reserve zero for empty space.
@@ -113,6 +113,11 @@ public class SaveManager {
                     chunk
             );
 
+            writeBlockDirections(
+                    output,
+                    chunk
+            );
+
             /*
              * The chunk now matches the copy on disk.
              */
@@ -176,6 +181,11 @@ public class SaveManager {
             );
 
             readBlocks(
+                    input,
+                    chunk
+            );
+
+            readBlockDirections(
                     input,
                     chunk
             );
@@ -367,6 +377,66 @@ public class SaveManager {
                             y,
                             z,
                             block
+                    );
+                }
+            }
+        }
+    }
+
+
+    private void writeBlockDirections(
+            DataOutputStream output,
+            Chunk chunk
+    ) throws IOException {
+        for (int x = 0; x < Chunk.SIZE; x++) {
+            for (int y = 0; y < Chunk.SIZE; y++) {
+                for (int z = 0; z < Chunk.SIZE; z++) {
+                    BlockDirection direction =
+                            chunk.getBlockDirection(
+                                    x,
+                                    y,
+                                    z
+                            );
+
+                    output.writeByte(
+                            direction.ordinal()
+                    );
+                }
+            }
+        }
+    }
+
+    private void readBlockDirections(
+            DataInputStream input,
+            Chunk chunk
+    ) throws IOException {
+        BlockDirection[] directions =
+                BlockDirection.values();
+
+        for (int x = 0; x < Chunk.SIZE; x++) {
+            for (int y = 0; y < Chunk.SIZE; y++) {
+                for (int z = 0; z < Chunk.SIZE; z++) {
+                    int directionOrdinal =
+                            input.readUnsignedByte();
+
+                    if (
+                            directionOrdinal < 0 ||
+                                    directionOrdinal >=
+                                            directions.length
+                    ) {
+                        throw new IOException(
+                                "Unknown block direction: "
+                                        + directionOrdinal
+                        );
+                    }
+
+                    chunk.setBlockDirection(
+                            x,
+                            y,
+                            z,
+                            directions[
+                                    directionOrdinal
+                                    ]
                     );
                 }
             }

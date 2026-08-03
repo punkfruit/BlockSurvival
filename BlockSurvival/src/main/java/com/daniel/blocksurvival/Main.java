@@ -79,6 +79,8 @@ public class Main {
 
     private static final int SHALLOW_DEPTH_DISTANCE = 8;
 
+    private float worldTime = 0.25f;
+
     private int lastPlayerChunkX =
             Integer.MIN_VALUE;
 
@@ -825,6 +827,96 @@ public class Main {
         }
     }
 
+    private void rebuildBoundaryNeighbors(
+            int worldX,
+            int worldY,
+            int worldZ
+    ) {
+        int chunkX =
+                Math.floorDiv(
+                        worldX,
+                        Chunk.SIZE
+                );
+
+        int chunkY =
+                Math.floorDiv(
+                        worldY,
+                        Chunk.SIZE
+                );
+
+        int chunkZ =
+                Math.floorDiv(
+                        worldZ,
+                        Chunk.SIZE
+                );
+
+        int localX =
+                Math.floorMod(
+                        worldX,
+                        Chunk.SIZE
+                );
+
+        int localY =
+                Math.floorMod(
+                        worldY,
+                        Chunk.SIZE
+                );
+
+        int localZ =
+                Math.floorMod(
+                        worldZ,
+                        Chunk.SIZE
+                );
+
+        if (localX == 0) {
+            rebuildChunk(
+                    chunkX - 1,
+                    chunkY,
+                    chunkZ
+            );
+        }
+
+        if (localX == Chunk.SIZE - 1) {
+            rebuildChunk(
+                    chunkX + 1,
+                    chunkY,
+                    chunkZ
+            );
+        }
+
+        if (localY == 0) {
+            rebuildChunk(
+                    chunkX,
+                    chunkY - 1,
+                    chunkZ
+            );
+        }
+
+        if (localY == Chunk.SIZE - 1) {
+            rebuildChunk(
+                    chunkX,
+                    chunkY + 1,
+                    chunkZ
+            );
+        }
+
+        if (localZ == 0) {
+            rebuildChunk(
+                    chunkX,
+                    chunkY,
+                    chunkZ - 1
+            );
+        }
+
+        if (localZ == Chunk.SIZE - 1) {
+            rebuildChunk(
+                    chunkX,
+                    chunkY,
+                    chunkZ + 1
+            );
+        }
+    }
+
     private void rebuildChunk(
             int chunkX,
             int chunkY,
@@ -1148,6 +1240,7 @@ public class Main {
         layout (location = 3) in float material;
         layout (location = 4) in float bendWeight;
         layout (location = 5) in float skyLight;
+        layout (location = 6) in float blockLight;
 
         const float MATERIAL_DEFAULT = 0.0;
         const float MATERIAL_WATER = 1.0;
@@ -1165,11 +1258,12 @@ public class Main {
         out float fragmentAO;
         out float fragmentMaterial;
         out float fragmentSkyLight;
+        out float fragmentBlockLight;
         
         
 
         void main() {
-        fragmentSkyLight = skyLight;
+        
             vec3 animatedPosition =
                     position;
 
@@ -1284,6 +1378,12 @@ public class Main {
              */
             fragmentWorldPosition =
                     animatedPosition;
+                    
+             fragmentSkyLight =
+                             skyLight;
+                
+                     fragmentBlockLight =
+                             blockLight;
         }
         """;
 
@@ -1300,12 +1400,14 @@ public class Main {
         in float fragmentAO;
         in float fragmentMaterial;
         in float fragmentSkyLight;
+        in float fragmentBlockLight;
         
         uniform sampler2D blockTexture;
         uniform vec3 cameraPosition;
         uniform vec3 fogColor;
         uniform float fogStart;
         uniform float fogEnd;
+        uniform float sunBrightness;
 
         uniform float animationTime;
         uniform float atlasTileSize;
@@ -1446,11 +1548,18 @@ vec4 textureColor =
                     ambientLight +
                     sunlight * 0.55;
         
-            vec3 litColor =
-                    textureColor.rgb *
-                    brightness *
-                    fragmentAO *
-                    fragmentSkyLight;
+            float finalLight =
+        max(
+                fragmentSkyLight *
+                        sunBrightness,
+                fragmentBlockLight
+        );
+
+vec3 litColor =
+        textureColor.rgb *
+        brightness *
+        fragmentAO *
+        finalLight;
         
             float distanceFromCamera =
                     length(
@@ -1491,6 +1600,11 @@ vec4 textureColor =
         worldShader.setInt(
                 "blockTexture",
                 0
+        );
+
+        worldShader.setFloat(
+                "sunBrightness",
+                0.08f
         );
 
         worldShader.unbind();
@@ -1591,7 +1705,7 @@ vec4 textureColor =
             );
         }
 
-        rebuildChunksAroundBlock(
+        rebuildBoundaryNeighbors(
                 blockX,
                 blockY,
                 blockZ
@@ -1651,11 +1765,117 @@ vec4 textureColor =
         BlockType selectedBlock =
                 hotbar.getSelectedBlock();
 
+        BlockDirection direction = null;
+        if (selectedBlock == BlockType.TORCH) {
+            int differenceX =
+                    placementX -
+                            currentRaycast.hitX();
+
+            int differenceY =
+                    placementY -
+                            currentRaycast.hitY();
+
+            int differenceZ =
+                    placementZ -
+                            currentRaycast.hitZ();
+
+            /*
+             * For now, a torch can only be placed on the top
+             * face of a supporting block.
+             */
+            boolean placedOnTop =
+                    differenceX == 0 &&
+                            differenceY == 1 &&
+                            differenceZ == 0;
+
+            if (
+                    differenceX == 0 &&
+                            differenceY == 1 &&
+                            differenceZ == 0
+            ) {
+                direction =
+                        BlockDirection.UP;
+            } else if (
+                    differenceZ == -1
+            ) {
+                direction =
+                        BlockDirection.NORTH;
+            } else if (
+                    differenceZ == 1
+            ) {
+                direction =
+                        BlockDirection.SOUTH;
+            } else if (
+                    differenceX == 1
+            ) {
+                direction =
+                        BlockDirection.EAST;
+            } else if (
+                    differenceX == -1
+            ) {
+                direction =
+                        BlockDirection.WEST;
+            } else {
+                return;
+            }
+
+            int supportX =
+                    placementX;
+
+            int supportY =
+                    placementY;
+
+            int supportZ =
+                    placementZ;
+
+            switch (direction) {
+                case UP ->
+                        supportY -= 1;
+
+                case NORTH ->
+                        supportZ += 1;
+
+                case SOUTH ->
+                        supportZ -= 1;
+
+                case EAST ->
+                        supportX -= 1;
+
+                case WEST ->
+                        supportX += 1;
+            }
+
+            BlockType supportBlock =
+                    world.getBlock(
+                            supportX,
+                            supportY,
+                            supportZ
+                    );
+
+            if (
+                    supportBlock == null ||
+                            !supportBlock.isOpaque()
+            ) {
+                System.out.println(
+                        "Torch requires a solid supporting block."
+                );
+
+                return;
+            }
+        }
+
         world.setBlock(
                 placementX,
                 placementY,
                 placementZ,
                 selectedBlock
+        );
+
+        world.setBlockDirection(
+                placementX,
+                placementY,
+                placementZ,
+                direction
         );
 
         rebuildEditedChunkImmediately(
@@ -1683,13 +1903,21 @@ vec4 textureColor =
             );
         }
 
-        rebuildChunksAroundBlock(
+        rebuildBoundaryNeighbors(
                 placementX,
                 placementY,
                 placementZ
         );
 
         currentRaycast = calculateRaycast();
+
+        System.out.println(
+                world.getBlockDirection(
+                        placementX,
+                        placementY,
+                        placementZ
+                )
+        );
     }
 
     private RaycastResult calculateRaycast() {
@@ -1973,7 +2201,7 @@ vec4 textureColor =
                         null
                 );
 
-                rebuildChunksAroundBlock(
+                rebuildBoundaryNeighbors(
                         0,
                         0,
                         0
@@ -1991,6 +2219,73 @@ vec4 textureColor =
                 breakTargetedBlock();
                 breakBlockRequested = false;
             }
+
+            float dayLengthSeconds =
+                    20.0f;
+
+            worldTime +=
+                    deltaTime /
+                            dayLengthSeconds;
+
+            if (worldTime >= 1.0f) {
+                worldTime -= 1.0f;
+            }
+
+            float sunAngle =
+                    worldTime *
+                            (float) Math.PI *
+                            2.0f;
+
+            float sunHeight =
+                    (float) Math.sin(
+                            sunAngle -
+                                    (float) Math.PI / 2.0f
+                    );
+
+            float sunBrightness =
+                    Math.max(
+                            0.08f,
+                            sunHeight
+                    );
+
+            worldShader.bind();
+
+            worldShader.setFloat(
+                    "sunBrightness",
+                    sunBrightness
+            );
+
+            worldShader.unbind();
+
+            Vector3f daySky =
+                    new Vector3f(
+                            0.35f,
+                            0.65f,
+                            0.90f
+                    );
+
+            Vector3f nightSky =
+                    new Vector3f(
+                            0.015f,
+                            0.025f,
+                            0.08f
+                    );
+
+            Vector3f currentSky =
+                    new Vector3f(
+                            nightSky
+                    ).lerp(
+                            daySky,
+                            sunBrightness
+                    );
+
+            glClearColor(
+                    currentSky.x,
+                    currentSky.y,
+                    currentSky.z,
+                    1.0f
+            );
+
 
             glClear(
                     GL_COLOR_BUFFER_BIT |

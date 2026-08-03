@@ -266,4 +266,106 @@ public class ChunkManager {
 
         return chunk;
     }
+
+    public synchronized BlockDirection getBlockDirection(
+            int worldX,
+            int worldY,
+            int worldZ
+    ) {
+        int chunkX =
+                Math.floorDiv(
+                        worldX,
+                        Chunk.SIZE
+                );
+
+        int chunkY =
+                Math.floorDiv(
+                        worldY,
+                        Chunk.SIZE
+                );
+
+        int chunkZ =
+                Math.floorDiv(
+                        worldZ,
+                        Chunk.SIZE
+                );
+
+        Chunk chunk =
+                getChunk(
+                        chunkX,
+                        chunkY,
+                        chunkZ
+                );
+
+        if (chunk == null) {
+            return BlockDirection.UP;
+        }
+
+        return chunk.getBlockDirection(
+                Math.floorMod(
+                        worldX,
+                        Chunk.SIZE
+                ),
+                Math.floorMod(
+                        worldY,
+                        Chunk.SIZE
+                ),
+                Math.floorMod(
+                        worldZ,
+                        Chunk.SIZE
+                )
+        );
+    }
+
+    public synchronized void setBlockDirection(
+            int worldX,
+            int worldY,
+            int worldZ,
+            BlockDirection direction
+    ) {
+        int chunkX =
+                Math.floorDiv(
+                        worldX,
+                        Chunk.SIZE
+                );
+
+        int chunkY =
+                Math.floorDiv(
+                        worldY,
+                        Chunk.SIZE
+                );
+
+        int chunkZ =
+                Math.floorDiv(
+                        worldZ,
+                        Chunk.SIZE
+                );
+
+        Chunk chunk =
+                getChunk(
+                        chunkX,
+                        chunkY,
+                        chunkZ
+                );
+
+        if (chunk == null) {
+            return;
+        }
+
+        chunk.setBlockDirection(
+                Math.floorMod(
+                        worldX,
+                        Chunk.SIZE
+                ),
+                Math.floorMod(
+                        worldY,
+                        Chunk.SIZE
+                ),
+                Math.floorMod(
+                        worldZ,
+                        Chunk.SIZE
+                ),
+                direction
+        );
+    }
 }

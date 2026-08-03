@@ -363,5 +363,31 @@ public class World {
                 !block.isOpaque();
     }
 
+    public BlockDirection getBlockDirection(
+            int worldX,
+            int worldY,
+            int worldZ
+    ) {
+        return chunkManager.getBlockDirection(
+                worldX,
+                worldY,
+                worldZ
+        );
+    }
+
+    public void setBlockDirection(
+            int worldX,
+            int worldY,
+            int worldZ,
+            BlockDirection direction
+    ) {
+        chunkManager.setBlockDirection(
+                worldX,
+                worldY,
+                worldZ,
+                direction
+        );
+    }
+
 
 }

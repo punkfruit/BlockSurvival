@@ -1702,5 +1702,132 @@ public class LightEngine {
         );
     }
 
+    public Set<Chunk> generateBlockLight(
+            World world,
+            Chunk sourceChunk
+    ) {
+        int chunkX =
+                sourceChunk.getChunkX();
+
+        int chunkZ =
+                sourceChunk.getChunkZ();
+
+        return relightBlockRegion(
+                world,
+                chunkX - RELIGHT_CHUNK_RADIUS,
+                chunkX + RELIGHT_CHUNK_RADIUS,
+                chunkZ - RELIGHT_CHUNK_RADIUS,
+                chunkZ + RELIGHT_CHUNK_RADIUS
+        );
+    }
+
+    public Set<Chunk> initializeBlockLight(
+            World world,
+            Chunk sourceChunk
+    ) {
+        Set<Chunk> changedChunks =
+                new HashSet<>();
+
+        ArrayDeque<LightNode> lightQueue =
+                new ArrayDeque<>();
+
+        int originX =
+                sourceChunk.getWorldOriginX();
+
+        int originY =
+                sourceChunk.getWorldOriginY();
+
+        int originZ =
+                sourceChunk.getWorldOriginZ();
+
+        /*
+         * Find light-emitting blocks only inside the newly
+         * loaded chunk. Do not clear existing neighboring light.
+         */
+        for (
+                int localX = 0;
+                localX < Chunk.SIZE;
+                localX++
+        ) {
+            for (
+                    int localY = 0;
+                    localY < Chunk.SIZE;
+                    localY++
+            ) {
+                for (
+                        int localZ = 0;
+                        localZ < Chunk.SIZE;
+                        localZ++
+                ) {
+                    BlockType block =
+                            sourceChunk.getBlock(
+                                    localX,
+                                    localY,
+                                    localZ
+                            );
+
+                    if (block == null) {
+                        continue;
+                    }
+
+                    int emittedLight =
+                            block.getEmittedLight();
+
+                    if (emittedLight <= 0) {
+                        continue;
+                    }
+
+                    int worldX =
+                            originX + localX;
+
+                    int worldY =
+                            originY + localY;
+
+                    int worldZ =
+                            originZ + localZ;
+
+                    world.setBlockLight(
+                            worldX,
+                            worldY,
+                            worldZ,
+                            emittedLight
+                    );
+
+                    lightQueue.addLast(
+                            new LightNode(
+                                    worldX,
+                                    worldY,
+                                    worldZ
+                            )
+                    );
+
+                    changedChunks.add(
+                            sourceChunk
+                    );
+                }
+            }
+        }
+
+        /*
+         * Spread sources from this chunk through nearby loaded
+         * chunks without erasing their existing light first.
+         */
+        propagateRegionBlockLight(
+                world,
+                sourceChunk.getChunkX() -
+                        RELIGHT_CHUNK_RADIUS,
+                sourceChunk.getChunkX() +
+                        RELIGHT_CHUNK_RADIUS,
+                sourceChunk.getChunkZ() -
+                        RELIGHT_CHUNK_RADIUS,
+                sourceChunk.getChunkZ() +
+                        RELIGHT_CHUNK_RADIUS,
+                lightQueue,
+                changedChunks
+        );
+
+        return changedChunks;
+    }
+
 
 }

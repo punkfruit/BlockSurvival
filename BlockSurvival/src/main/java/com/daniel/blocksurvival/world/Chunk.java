@@ -9,6 +9,12 @@ public class Chunk {
 
     private final BlockType[][][] blocks;
     /*
+     * Optional state data for directional blocks.
+     *
+     * Zero currently represents UP.
+     */
+    private final byte[] blockDirections;
+    /*
      * Light levels are stored separately from blocks.
      *
      * Both arrays store values from 0–15.
@@ -50,6 +56,10 @@ public class Chunk {
                         ];
 
         blockLight =
+                new byte[
+                        SIZE * SIZE * SIZE
+                        ];
+        blockDirections =
                 new byte[
                         SIZE * SIZE * SIZE
                         ];
@@ -101,6 +111,21 @@ public class Chunk {
         }
 
         blocks[localX][localY][localZ] = type;
+
+        /*
+         * A newly placed block starts with its default orientation.
+         *
+         * Directional placement may overwrite this immediately
+         * afterward.
+         */
+        blockDirections[
+                lightIndex(
+                        localX,
+                        localY,
+                        localZ
+                )
+                ] =
+                (byte) BlockDirection.UP.ordinal();
 
         if (markDirty) {
             dirty = true;
@@ -337,5 +362,72 @@ public class Chunk {
 
             default -> false;
         };
+    }
+
+    public synchronized BlockDirection getBlockDirection(
+            int localX,
+            int localY,
+            int localZ
+    ) {
+        if (!isInsideChunk(
+                localX,
+                localY,
+                localZ
+        )) {
+            return BlockDirection.UP;
+        }
+
+        int directionOrdinal =
+                Byte.toUnsignedInt(
+                        blockDirections[
+                                lightIndex(
+                                        localX,
+                                        localY,
+                                        localZ
+                                )
+                                ]
+                );
+
+        BlockDirection[] directions =
+                BlockDirection.values();
+
+        if (directionOrdinal >= directions.length) {
+            return BlockDirection.UP;
+        }
+
+        return directions[
+                directionOrdinal
+                ];
+    }
+
+    public synchronized void setBlockDirection(
+            int localX,
+            int localY,
+            int localZ,
+            BlockDirection direction
+    ) {
+        if (!isInsideChunk(
+                localX,
+                localY,
+                localZ
+        )) {
+            return;
+        }
+
+        if (direction == null) {
+            direction =
+                    BlockDirection.UP;
+        }
+
+        blockDirections[
+                lightIndex(
+                        localX,
+                        localY,
+                        localZ
+                )
+                ] =
+                (byte) direction.ordinal();
+
+        dirty = true;
     }
 }

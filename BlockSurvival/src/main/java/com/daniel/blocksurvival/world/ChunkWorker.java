@@ -3,6 +3,7 @@ package com.daniel.blocksurvival.world;
 import com.daniel.blocksurvival.graphics.ChunkMeshBuilder;
 import com.daniel.blocksurvival.graphics.ChunkMeshData;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -524,11 +525,30 @@ public class ChunkWorker {
                     ChunkState.GENERATED
             );
 
-            Set<Chunk> lightChangedChunks =
+
+
+            Set<Chunk> skyChangedChunks =
                     lightEngine.generateSkyLight(
                             world,
                             chunk
                     );
+
+            Set<Chunk> blockChangedChunks =
+                    lightEngine.initializeBlockLight(
+                            world,
+                            chunk
+                    );
+
+            Set<Chunk> lightChangedChunks =
+                    new HashSet<>();
+
+            lightChangedChunks.addAll(
+                    skyChangedChunks
+            );
+
+            lightChangedChunks.addAll(
+                    blockChangedChunks
+            );
 
 
 
