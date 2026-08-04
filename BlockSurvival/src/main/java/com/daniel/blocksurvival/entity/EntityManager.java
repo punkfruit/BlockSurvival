@@ -2,6 +2,7 @@ package com.daniel.blocksurvival.entity;
 
 import com.daniel.blocksurvival.world.World;
 import org.joml.Vector3f;
+import com.daniel.blocksurvival.inventory.ItemCollector;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,6 +49,7 @@ public class EntityManager {
     public void update(
             World world,
             Vector3f playerPosition,
+            ItemCollector itemCollector,
             float deltaTime
     ) {
         updating =
@@ -61,6 +63,7 @@ public class EntityManager {
             entity.update(
                     world,
                     playerPosition,
+                    itemCollector,
                     deltaTime
             );
         }

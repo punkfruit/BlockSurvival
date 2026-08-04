@@ -1,6 +1,7 @@
 package com.daniel.blocksurvival.entity;
 
 import com.daniel.blocksurvival.world.World;
+import com.daniel.blocksurvival.inventory.ItemCollector;
 import org.joml.Vector3f;
 
 public abstract class Entity {
@@ -30,6 +31,7 @@ public abstract class Entity {
     public abstract void update(
             World world,
             Vector3f playerPosition,
+            ItemCollector itemCollector,
             float deltaTime
     );
 

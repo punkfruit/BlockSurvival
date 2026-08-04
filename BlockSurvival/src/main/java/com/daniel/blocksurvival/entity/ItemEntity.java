@@ -3,6 +3,9 @@ package com.daniel.blocksurvival.entity;
 import com.daniel.blocksurvival.world.BlockModel;
 import com.daniel.blocksurvival.world.BlockType;
 import com.daniel.blocksurvival.world.World;
+import com.daniel.blocksurvival.inventory.ItemCollector;
+import com.daniel.blocksurvival.inventory.ItemDefinition;
+import com.daniel.blocksurvival.inventory.Items;
 import org.joml.Vector3f;
 
 public class ItemEntity
@@ -101,6 +104,7 @@ public class ItemEntity
     public void update(
             World world,
             Vector3f playerPosition,
+            ItemCollector itemCollector,
             float deltaTime
     ) {
         if (removed) {
@@ -146,7 +150,8 @@ public class ItemEntity
         );
 
         attemptPickup(
-                playerPosition
+                playerPosition,
+                itemCollector
         );
 
         /*
@@ -602,12 +607,13 @@ public class ItemEntity
     }
 
     private void attemptPickup(
-            Vector3f playerPosition
+            Vector3f playerPosition,
+            ItemCollector itemCollector
     ) {
         if (
                 playerPosition == null ||
-                        age <
-                                PICKUP_DELAY_SECONDS
+                        itemCollector == null ||
+                        age < PICKUP_DELAY_SECONDS
         ) {
             return;
         }
@@ -625,12 +631,48 @@ public class ItemEntity
             return;
         }
 
-        System.out.println(
-                "Picked up " +
+        ItemDefinition definition =
+                Items.fromBlock(
                         blockType
-        );
+                );
 
-        remove();
+        if (definition == null) {
+            System.err.println(
+                    "No item definition exists for " +
+                            blockType
+            );
+
+            return;
+        }
+
+        int quantityNotAccepted =
+                itemCollector.collect(
+                        definition,
+                        1
+                );
+
+        /*
+         * The entire dropped stack fit.
+         */
+        if (quantityNotAccepted == 0) {
+            System.out.println(
+                    "Picked up " +
+                            definition.displayName()
+            );
+
+            remove();
+            return;
+        }
+
+        /*
+         * The inventory had no room.
+         *
+         * Leave the entity in the world rather than deleting it.
+         */
+        System.out.println(
+                "No inventory space for " +
+                        definition.displayName()
+        );
     }
 
     public BlockType getBlockType() {

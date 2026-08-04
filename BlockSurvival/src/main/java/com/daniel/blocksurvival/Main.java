@@ -4,6 +4,8 @@ import com.daniel.blocksurvival.entity.Entity;
 import com.daniel.blocksurvival.entity.EntityManager;
 import com.daniel.blocksurvival.entity.ItemEntity;
 import com.daniel.blocksurvival.graphics.*;
+import com.daniel.blocksurvival.inventory.Inventory;
+import com.daniel.blocksurvival.inventory.ItemStack;
 import com.daniel.blocksurvival.world.*;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -109,6 +111,12 @@ public class Main {
     private boolean firstMouseMovement = true;
 
     private boolean waitingForPlayerTerrain = true;
+
+    private final Inventory playerInventory =
+            new Inventory(
+                    4,
+                    3
+            );
 
     private float deltaTime = 0.0f;
     private float previousFrameTime = 0.0f;
@@ -2218,6 +2226,7 @@ vec3 litColor =
                 entityManager.update(
                         world,
                         camera.getBodyCenterPosition(),
+                        playerInventory,
                         deltaTime
                 );
 
@@ -2499,6 +2508,46 @@ vec3 litColor =
 
         if (callback != null) {
             callback.free();
+        }
+    }
+
+    private void printPlayerInventory() {
+        System.out.println(
+                "Inventory:"
+        );
+
+        if (
+                playerInventory.getStacks()
+                        .isEmpty()
+        ) {
+            System.out.println(
+                    "  empty"
+            );
+
+            return;
+        }
+
+        for (
+                ItemStack stack :
+                playerInventory.getStacks()
+        ) {
+            System.out.println(
+                    "  " +
+                            stack.getDefinition()
+                                    .displayName() +
+                            " x" +
+                            stack.getQuantity() +
+                            " at [" +
+                            stack.getGridX() +
+                            ", " +
+                            stack.getGridY() +
+                            "]" +
+                            (
+                                    stack.isRotated()
+                                            ? " rotated"
+                                            : ""
+                            )
+            );
         }
     }
 }
