@@ -1,6 +1,7 @@
 package com.daniel.blocksurvival;
 
 import com.daniel.blocksurvival.entity.Entity;
+import com.daniel.blocksurvival.entity.EntityManager;
 import com.daniel.blocksurvival.entity.ItemEntity;
 import com.daniel.blocksurvival.graphics.*;
 import com.daniel.blocksurvival.world.*;
@@ -37,8 +38,8 @@ public class Main {
     private final TerrainGenerator terrainGenerator =
             new TerrainGenerator(WORLD_SEED);
 
-    private final List<Entity> entities =
-            new ArrayList<>();
+    private final EntityManager entityManager =
+            new EntityManager();
 
     //private static final float PICKUP_DELAY_SECONDS = 4.0f;
     private final Sky sky =
@@ -69,6 +70,7 @@ public class Main {
     private SkyRenderer skyRenderer;
     private BlockOutlineRenderer outlineRenderer;
     private UiRenderer uiRenderer;
+    private ItemEntityRenderer itemEntityRenderer;
 
     private RaycastResult currentRaycast;
 
@@ -336,6 +338,10 @@ public class Main {
         atlasTexture = new Texture(
                 "src/main/resources/textures/block_atlas.png"
         );
+        itemEntityRenderer =
+                new ItemEntityRenderer(
+                        atlasTexture
+                );
 
         worldRenderer =
                 new WorldRenderer(
@@ -1685,7 +1691,7 @@ vec3 litColor =
         );
 
         if (oldBlock != null) {
-            entities.add(
+            entityManager.spawn(
                     new ItemEntity(
                             blockX,
                             blockY + 0.15f,
@@ -2209,19 +2215,10 @@ vec3 litColor =
                         deltaTime
                 );
 
-                Vector3f playerPosition =
-                        camera.getBodyCenterPosition();
-
-                for (Entity entity : entities) {
-                    entity.update(
-                            world,
-                            playerPosition,
-                            deltaTime
-                    );
-                }
-
-                entities.removeIf(
-                        Entity::isRemoved
+                entityManager.update(
+                        world,
+                        camera.getBodyCenterPosition(),
+                        deltaTime
                 );
 
                 currentRaycast =
@@ -2351,6 +2348,15 @@ vec3 litColor =
                     deltaTime
             );
 
+            itemEntityRenderer.render(
+                    entityManager.getEntities(),
+                    projectionMatrix,
+                    viewMatrix,
+                    camera,
+                    world,
+                    sunBrightness
+            );
+
             if (currentRaycast != null) {
                 outlineRenderer.render(
                         currentRaycast.hitX(),
@@ -2464,8 +2470,11 @@ vec3 litColor =
         }
 
         chunkMeshes.clear();
+        entityManager.clear();
 
-        atlasTexture.destroy();
+        if (itemEntityRenderer != null) {
+            itemEntityRenderer.destroy();
+        }
 
         if (uiRenderer != null) {
             uiRenderer.cleanup();
@@ -2475,14 +2484,16 @@ vec3 litColor =
             skyRenderer.destroy();
         }
 
-        glfwDestroyWindow(window);
-        glfwTerminate();
-
         if (outlineRenderer != null) {
             outlineRenderer.cleanup();
         }
 
+        if (atlasTexture != null) {
+            atlasTexture.destroy();
+        }
 
+        glfwDestroyWindow(window);
+        glfwTerminate();
 
         GLFWErrorCallback callback = glfwSetErrorCallback(null);
 

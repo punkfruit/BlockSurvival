@@ -5,6 +5,8 @@ import org.joml.Vector3f;
 
 public abstract class Entity {
 
+
+
     protected final Vector3f position =
             new Vector3f();
 
@@ -30,6 +32,10 @@ public abstract class Entity {
             Vector3f playerPosition,
             float deltaTime
     );
+
+    public abstract EntityCategory getCategory();
+
+    public abstract EntityType getType();
 
     public Vector3f getPosition() {
         return new Vector3f(

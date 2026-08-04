@@ -45,7 +45,7 @@ public class BlockMeshBuilder {
     private final List<Integer> indices =
             new ArrayList<>();
 
-    public MeshData buildCube(
+    public MeshData buildBlock(
             BlockType blockType
     ) {
         if (blockType == null) {
@@ -57,23 +57,44 @@ public class BlockMeshBuilder {
         vertices.clear();
         indices.clear();
 
-        /*
-         * The model is one block wide and centered at zero.
-         *
-         * The entity renderer will later shrink it to 0.25.
-         */
+        switch (blockType.getModel()) {
+            case CUBE ->
+                    addCube(
+                            blockType
+                    );
+
+            case CROSS ->
+                    addCross(
+                            blockType
+                    );
+
+            /*
+             * Temporary fallback.
+             *
+             * We will add the correctly shaped dropped torch
+             * after confirming crossed models work.
+             */
+            case TORCH ->
+                    addTorch(
+                            blockType
+                    );
+        }
+
+        return new MeshData(
+                convertVerticesToArray(),
+                convertIndicesToArray()
+        );
+    }
+
+    private void addCube(
+            BlockType blockType
+    ) {
         float minimum =
                 -0.5f;
 
         float maximum =
                 0.5f;
 
-        /*
-         * Standalone items begin fully illuminated.
-         *
-         * Once they render correctly, we can sample lighting
-         * from the entity's world position.
-         */
         float skyLight =
                 1.0f;
 
@@ -82,7 +103,7 @@ public class BlockMeshBuilder {
                         15.0f;
 
         /*
-         * Front: positive Z.
+         * Front.
          */
         addFace(
                 minimum, maximum, maximum,
@@ -97,7 +118,7 @@ public class BlockMeshBuilder {
         );
 
         /*
-         * Back: negative Z.
+         * Back.
          */
         addFace(
                 maximum, maximum, minimum,
@@ -112,7 +133,7 @@ public class BlockMeshBuilder {
         );
 
         /*
-         * Left: negative X.
+         * Left.
          */
         addFace(
                 minimum, maximum, minimum,
@@ -127,7 +148,7 @@ public class BlockMeshBuilder {
         );
 
         /*
-         * Right: positive X.
+         * Right.
          */
         addFace(
                 maximum, maximum, maximum,
@@ -142,7 +163,7 @@ public class BlockMeshBuilder {
         );
 
         /*
-         * Top: positive Y.
+         * Top.
          */
         addFace(
                 minimum, maximum, minimum,
@@ -157,7 +178,7 @@ public class BlockMeshBuilder {
         );
 
         /*
-         * Bottom: negative Y.
+         * Bottom.
          */
         addFace(
                 minimum, minimum, maximum,
@@ -170,10 +191,241 @@ public class BlockMeshBuilder {
                 skyLight,
                 blockLight
         );
+    }
 
-        return new MeshData(
-                convertVerticesToArray(),
-                convertIndicesToArray()
+    private void addCross(
+            BlockType blockType
+    ) {
+        float minimum =
+                -0.5f;
+
+        float maximum =
+                0.5f;
+
+        float skyLight =
+                1.0f;
+
+        float blockLight =
+                blockType.getEmittedLight() /
+                        15.0f;
+
+        AtlasTile tile =
+                blockType.getSideTexture();
+
+        /*
+         * First diagonal plane:
+         *
+         * \ when viewed from above.
+         */
+        addFace(
+                minimum, maximum, minimum,
+                minimum, minimum, minimum,
+                maximum, minimum, maximum,
+                maximum, maximum, maximum,
+                tile,
+                skyLight,
+                blockLight
+        );
+
+        /*
+         * Second diagonal plane:
+         *
+         * / when viewed from above.
+         */
+        addFace(
+                maximum, maximum, minimum,
+                maximum, minimum, minimum,
+                minimum, minimum, maximum,
+                minimum, maximum, maximum,
+                tile,
+                skyLight,
+                blockLight
+        );
+    }
+
+    private void addDoubleSidedFace(
+            float x1,
+            float y1,
+            float z1,
+
+            float x2,
+            float y2,
+            float z2,
+
+            float x3,
+            float y3,
+            float z3,
+
+            float x4,
+            float y4,
+            float z4,
+
+            AtlasTile tile,
+            float skyLight,
+            float blockLight
+    ) {
+        /*
+         * Front side.
+         */
+        addFace(
+                x1, y1, z1,
+                x2, y2, z2,
+                x3, y3, z3,
+                x4, y4, z4,
+                tile,
+                skyLight,
+                blockLight
+        );
+
+        /*
+         * Reverse the vertex order to generate the back side.
+         */
+        addFace(
+                x4, y4, z4,
+                x3, y3, z3,
+                x2, y2, z2,
+                x1, y1, z1,
+                tile,
+                skyLight,
+                blockLight
+        );
+    }
+
+    private void addTorch(
+            BlockType blockType
+    ) {
+        float halfWidth =
+                1.0f / 16.0f;
+
+        float bottom =
+                -0.5f;
+
+        float top =
+                0.25f;
+
+        float skyLight =
+                1.0f;
+
+        float blockLight =
+                Math.max(
+                        blockType.getEmittedLight() /
+                                15.0f,
+                        0.0f
+                );
+
+        AtlasTile sideTile =
+                blockType.getSideTexture();
+
+        AtlasTile topTile =
+                blockType.getTopTexture();
+
+        float torchMinimumU =
+                7.0f / 16.0f;
+
+        float torchMaximumU =
+                9.0f / 16.0f;
+
+        float torchMinimumV =
+                5.0f / 16.0f;
+
+        float torchMaximumV =
+                1.0f;
+
+        float capMinimumU =
+                7.0f / 16.0f;
+
+        float capMaximumU =
+                9.0f / 16.0f;
+
+        float capMinimumV =
+                3.0f / 16.0f;
+
+        float capMaximumV =
+                5.0f / 16.0f;
+
+        /*
+         * Front.
+         */
+        addFaceUV(
+                -halfWidth, top, halfWidth,
+                -halfWidth, bottom, halfWidth,
+                halfWidth, bottom, halfWidth,
+                halfWidth, top, halfWidth,
+                sideTile,
+                torchMinimumU,
+                torchMinimumV,
+                torchMaximumU,
+                torchMaximumV,
+                skyLight,
+                blockLight
+        );
+
+        /*
+         * Back.
+         */
+        addFaceUV(
+                halfWidth, top, -halfWidth,
+                halfWidth, bottom, -halfWidth,
+                -halfWidth, bottom, -halfWidth,
+                -halfWidth, top, -halfWidth,
+                sideTile,
+                torchMinimumU,
+                torchMinimumV,
+                torchMaximumU,
+                torchMaximumV,
+                skyLight,
+                blockLight
+        );
+
+        /*
+         * Left.
+         */
+        addFaceUV(
+                -halfWidth, top, -halfWidth,
+                -halfWidth, bottom, -halfWidth,
+                -halfWidth, bottom, halfWidth,
+                -halfWidth, top, halfWidth,
+                sideTile,
+                torchMinimumU,
+                torchMinimumV,
+                torchMaximumU,
+                torchMaximumV,
+                skyLight,
+                blockLight
+        );
+
+        /*
+         * Right.
+         */
+        addFaceUV(
+                halfWidth, top, halfWidth,
+                halfWidth, bottom, halfWidth,
+                halfWidth, bottom, -halfWidth,
+                halfWidth, top, -halfWidth,
+                sideTile,
+                torchMinimumU,
+                torchMinimumV,
+                torchMaximumU,
+                torchMaximumV,
+                skyLight,
+                blockLight
+        );
+
+        /*
+         * Top cap.
+         */
+        addFaceUV(
+                -halfWidth, top, -halfWidth,
+                -halfWidth, top, halfWidth,
+                halfWidth, top, halfWidth,
+                halfWidth, top, -halfWidth,
+                topTile,
+                capMinimumU,
+                capMinimumV,
+                capMaximumU,
+                capMaximumV,
+                skyLight,
+                blockLight
         );
     }
 
@@ -198,96 +450,18 @@ public class BlockMeshBuilder {
             float skyLight,
             float blockLight
     ) {
-        int firstVertexIndex =
-                vertices.size() /
-                        FLOATS_PER_VERTEX;
-
-        float tileSize =
-                BlockType.getTileSize();
-
-        float minimumU =
-                tile.column() *
-                        tileSize;
-
-        float minimumV =
-                tile.row() *
-                        tileSize;
-
-        float maximumU =
-                minimumU +
-                        tileSize;
-
-        float maximumV =
-                minimumV +
-                        tileSize;
-
-        addVertex(
-                x1,
-                y1,
-                z1,
-                minimumU,
-                minimumV,
+        addFaceUV(
+                x1, y1, z1,
+                x2, y2, z2,
+                x3, y3, z3,
+                x4, y4, z4,
+                tile,
+                0.0f,
+                0.0f,
+                1.0f,
+                1.0f,
                 skyLight,
                 blockLight
-        );
-
-        addVertex(
-                x2,
-                y2,
-                z2,
-                minimumU,
-                maximumV,
-                skyLight,
-                blockLight
-        );
-
-        addVertex(
-                x3,
-                y3,
-                z3,
-                maximumU,
-                maximumV,
-                skyLight,
-                blockLight
-        );
-
-        addVertex(
-                x4,
-                y4,
-                z4,
-                maximumU,
-                minimumV,
-                skyLight,
-                blockLight
-        );
-
-        /*
-         * Two triangles forming the quad.
-         *
-         * The winding matches the existing chunk faces.
-         */
-        indices.add(
-                firstVertexIndex
-        );
-
-        indices.add(
-                firstVertexIndex + 1
-        );
-
-        indices.add(
-                firstVertexIndex + 2
-        );
-
-        indices.add(
-                firstVertexIndex + 2
-        );
-
-        indices.add(
-                firstVertexIndex + 3
-        );
-
-        indices.add(
-                firstVertexIndex
         );
     }
 
@@ -345,6 +519,123 @@ public class BlockMeshBuilder {
 
         vertices.add(
                 blockLight
+        );
+    }
+
+    private void addFaceUV(
+            float x1,
+            float y1,
+            float z1,
+
+            float x2,
+            float y2,
+            float z2,
+
+            float x3,
+            float y3,
+            float z3,
+
+            float x4,
+            float y4,
+            float z4,
+
+            AtlasTile tile,
+            float minimumU,
+            float minimumV,
+            float maximumU,
+            float maximumV,
+            float skyLight,
+            float blockLight
+    ) {
+        int firstVertexIndex =
+                vertices.size() /
+                        FLOATS_PER_VERTEX;
+
+        float tileSize =
+                BlockType.getTileSize();
+
+        float tileOriginU =
+                tile.column() *
+                        tileSize;
+
+        float tileOriginV =
+                tile.row() *
+                        tileSize;
+
+        float atlasMinimumU =
+                tileOriginU +
+                        minimumU *
+                                tileSize;
+
+        float atlasMinimumV =
+                tileOriginV +
+                        minimumV *
+                                tileSize;
+
+        float atlasMaximumU =
+                tileOriginU +
+                        maximumU *
+                                tileSize;
+
+        float atlasMaximumV =
+                tileOriginV +
+                        maximumV *
+                                tileSize;
+
+        addVertex(
+                x1, y1, z1,
+                atlasMinimumU,
+                atlasMinimumV,
+                skyLight,
+                blockLight
+        );
+
+        addVertex(
+                x2, y2, z2,
+                atlasMinimumU,
+                atlasMaximumV,
+                skyLight,
+                blockLight
+        );
+
+        addVertex(
+                x3, y3, z3,
+                atlasMaximumU,
+                atlasMaximumV,
+                skyLight,
+                blockLight
+        );
+
+        addVertex(
+                x4, y4, z4,
+                atlasMaximumU,
+                atlasMinimumV,
+                skyLight,
+                blockLight
+        );
+
+        indices.add(
+                firstVertexIndex
+        );
+
+        indices.add(
+                firstVertexIndex + 1
+        );
+
+        indices.add(
+                firstVertexIndex + 2
+        );
+
+        indices.add(
+                firstVertexIndex + 2
+        );
+
+        indices.add(
+                firstVertexIndex + 3
+        );
+
+        indices.add(
+                firstVertexIndex
         );
     }
 

@@ -8,6 +8,16 @@ import org.joml.Vector3f;
 public class ItemEntity
         extends Entity {
 
+    @Override
+    public EntityCategory getCategory() {
+        return EntityCategory.ITEM;
+    }
+
+    @Override
+    public EntityType getType() {
+        return EntityType.DROPPED_ITEM;
+    }
+
     private static final float GRAVITY =
             -18.0f;
 
@@ -25,7 +35,7 @@ public class ItemEntity
             1.25f;
 
     private static final float PICKUP_DELAY_SECONDS =
-            0.40f;
+            3f;//0.40f default
 
     private static final float DESPAWN_SECONDS =
             300.0f;
@@ -38,6 +48,15 @@ public class ItemEntity
 
     private boolean grounded;
     private boolean hasBounced;
+
+    private static final float ATTRACTION_RADIUS =
+            2.5f;
+
+    private static final float ATTRACTION_ACCELERATION =
+            24.0f;
+
+    private static final float MAX_ATTRACTION_SPEED =
+            8.0f;
 
     public ItemEntity(
             float x,
@@ -102,14 +121,24 @@ public class ItemEntity
         /*
          * Rotate continuously for the future renderer.
          */
+        float rotationSpeed =
+                grounded
+                        ? 45.0f
+                        : 140.0f;
+
         rotation +=
-                90.0f *
+                rotationSpeed *
                         deltaTime;
 
         if (rotation >= 360.0f) {
             rotation -=
                     360.0f;
         }
+
+        applyAttraction(
+                playerPosition,
+                deltaTime
+        );
 
         applyPhysics(
                 world,
@@ -189,6 +218,79 @@ public class ItemEntity
                 velocity.y *
                         deltaTime
         );
+    }
+
+    private void applyAttraction(
+            Vector3f playerPosition,
+            float deltaTime
+    ) {
+        if (
+                playerPosition == null ||
+                        age <
+                                PICKUP_DELAY_SECONDS
+        ) {
+            return;
+        }
+
+        Vector3f directionToPlayer =
+                new Vector3f(
+                        playerPosition
+                ).sub(
+                        position
+                );
+
+        float distanceSquared =
+                directionToPlayer.lengthSquared();
+
+        if (
+                distanceSquared >
+                        ATTRACTION_RADIUS *
+                                ATTRACTION_RADIUS
+        ) {
+            return;
+        }
+
+        /*
+         * Avoid normalizing an effectively zero-length vector.
+         */
+        if (distanceSquared < 0.0001f) {
+            return;
+        }
+
+        directionToPlayer.normalize();
+
+        /*
+         * Accelerate the item toward the player's body center.
+         */
+        velocity.fma(
+                ATTRACTION_ACCELERATION *
+                        deltaTime,
+                directionToPlayer
+        );
+
+        /*
+         * Once attraction begins, allow the item to lift away
+         * from the floor.
+         */
+        grounded =
+                false;
+
+        /*
+         * Prevent the item from becoming a tiny railgun slug.
+         */
+        float speedSquared =
+                velocity.lengthSquared();
+
+        if (
+                speedSquared >
+                        MAX_ATTRACTION_SPEED *
+                                MAX_ATTRACTION_SPEED
+        ) {
+            velocity.normalize()
+                    .mul(
+                            MAX_ATTRACTION_SPEED
+                    );
+        }
     }
 
     private void moveAlongX(
