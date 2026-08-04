@@ -784,4 +784,14 @@ public class Camera {
 
         updateFrontDirection();
     }
+
+    public Vector3f getBodyCenterPosition() {
+        return new Vector3f(
+                position
+        ).add(
+                0.0f,
+                -0.70f,
+                0.0f
+        );
+    }
 }

@@ -1,5 +1,7 @@
 package com.daniel.blocksurvival;
 
+import com.daniel.blocksurvival.entity.Entity;
+import com.daniel.blocksurvival.entity.ItemEntity;
 import com.daniel.blocksurvival.graphics.*;
 import com.daniel.blocksurvival.world.*;
 import org.joml.Matrix4f;
@@ -35,6 +37,13 @@ public class Main {
     private final TerrainGenerator terrainGenerator =
             new TerrainGenerator(WORLD_SEED);
 
+    private final List<Entity> entities =
+            new ArrayList<>();
+
+    //private static final float PICKUP_DELAY_SECONDS = 4.0f;
+    private final Sky sky =
+            new Sky();
+
     private final LightEngine lightEngine =
             new LightEngine(
                     terrainGenerator
@@ -57,6 +66,7 @@ public class Main {
     private Texture atlasTexture;
     private Shader worldShader;
     private WorldRenderer worldRenderer;
+    private SkyRenderer skyRenderer;
     private BlockOutlineRenderer outlineRenderer;
     private UiRenderer uiRenderer;
 
@@ -79,8 +89,6 @@ public class Main {
 
     private static final int SHALLOW_DEPTH_DISTANCE = 8;
 
-    private float worldTime = 0.25f;
-
     private int lastPlayerChunkX =
             Integer.MIN_VALUE;
 
@@ -102,6 +110,8 @@ public class Main {
 
     private float deltaTime = 0.0f;
     private float previousFrameTime = 0.0f;
+
+
 
     public static void main(String[] args) {
         new Main().run();
@@ -308,9 +318,9 @@ public class Main {
         });
 
         glClearColor(
-                0.35f,
-                0.65f,
-                0.90f,
+                0.0f,
+                0.0f,
+                0.0f,
                 1.0f
         );
 
@@ -321,6 +331,7 @@ public class Main {
         createShaders();
 
         outlineRenderer = new BlockOutlineRenderer();
+        skyRenderer = new SkyRenderer();
 
         atlasTexture = new Texture(
                 "src/main/resources/textures/block_atlas.png"
@@ -947,7 +958,7 @@ public class Main {
 
     private boolean isPlayerTerrainLoaded() {
         Vector3f playerPosition =
-                camera.getPosition();
+                camera.getBodyCenterPosition();
 
         int blockX =
                 (int) Math.floor(
@@ -1604,7 +1615,7 @@ vec3 litColor =
 
         worldShader.setFloat(
                 "sunBrightness",
-                0.08f
+                1.0f
         );
 
         worldShader.unbind();
@@ -1672,6 +1683,18 @@ vec3 litColor =
                         blockY + ", " +
                         blockZ
         );
+
+        if (oldBlock != null) {
+            entities.add(
+                    new ItemEntity(
+                            blockX,
+                            blockY + 0.15f,
+                            blockZ,
+                            oldBlock
+                    )
+            );
+        }
+
 
         world.setBlock(
                 blockX,
@@ -2186,6 +2209,21 @@ vec3 litColor =
                         deltaTime
                 );
 
+                Vector3f playerPosition =
+                        camera.getBodyCenterPosition();
+
+                for (Entity entity : entities) {
+                    entity.update(
+                            world,
+                            playerPosition,
+                            deltaTime
+                    );
+                }
+
+                entities.removeIf(
+                        Entity::isRemoved
+                );
+
                 currentRaycast =
                         calculateRaycast();
             }
@@ -2220,69 +2258,20 @@ vec3 litColor =
                 breakBlockRequested = false;
             }
 
-            float dayLengthSeconds =
-                    20.0f;
-
-            worldTime +=
-                    deltaTime /
-                            dayLengthSeconds;
-
-            if (worldTime >= 1.0f) {
-                worldTime -= 1.0f;
-            }
-
-            float sunAngle =
-                    worldTime *
-                            (float) Math.PI *
-                            2.0f;
-
-            float sunHeight =
-                    (float) Math.sin(
-                            sunAngle -
-                                    (float) Math.PI / 2.0f
-                    );
-
-            float sunBrightness =
-                    Math.max(
-                            0.08f,
-                            sunHeight
-                    );
-
-            worldShader.bind();
-
-            worldShader.setFloat(
-                    "sunBrightness",
-                    sunBrightness
+            sky.update(
+                    deltaTime
             );
 
-            worldShader.unbind();
+            float sunBrightness =
+                    sky.getSunBrightness();
 
-            Vector3f daySky =
-                    new Vector3f(
-                            0.35f,
-                            0.65f,
-                            0.90f
-                    );
-
-            Vector3f nightSky =
-                    new Vector3f(
-                            0.015f,
-                            0.025f,
-                            0.08f
-                    );
-
-            Vector3f currentSky =
-                    new Vector3f(
-                            nightSky
-                    ).lerp(
-                            daySky,
-                            sunBrightness
-                    );
+            Vector3f skyColor =
+                    sky.getSkyColor();
 
             glClearColor(
-                    currentSky.x,
-                    currentSky.y,
-                    currentSky.z,
+                    skyColor.x,
+                    skyColor.y,
+                    skyColor.z,
                     1.0f
             );
 
@@ -2292,10 +2281,27 @@ vec3 litColor =
                             GL_DEPTH_BUFFER_BIT
             );
 
+
             /*
              * The cube now remains still at the world origin.
              */
 
+            worldShader.bind();
+
+            worldShader.setFloat(
+                    "sunBrightness",
+                    sunBrightness
+            );
+
+            Vector3f fogColor =
+                    sky.getFogColor();
+
+            worldShader.setVector3(
+                    "fogColor",
+                    fogColor
+            );
+
+            worldShader.unbind();
 
 
             /*
@@ -2323,6 +2329,12 @@ vec3 litColor =
                             0.1f,
                             500.0f
                     );
+
+            skyRenderer.render(
+                    sky,
+                    projectionMatrix,
+                    viewMatrix
+            );
 
             /*
              * Combine the three transformations.
@@ -2458,12 +2470,19 @@ vec3 litColor =
         if (uiRenderer != null) {
             uiRenderer.cleanup();
         }
+
+        if (skyRenderer != null) {
+            skyRenderer.destroy();
+        }
+
         glfwDestroyWindow(window);
         glfwTerminate();
 
         if (outlineRenderer != null) {
             outlineRenderer.cleanup();
         }
+
+
 
         GLFWErrorCallback callback = glfwSetErrorCallback(null);
 
