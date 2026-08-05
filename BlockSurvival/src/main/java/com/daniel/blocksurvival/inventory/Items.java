@@ -1,5 +1,7 @@
 package com.daniel.blocksurvival.inventory;
 
+import com.daniel.blocksurvival.world.AtlasTile;
+import com.daniel.blocksurvival.world.BlockModel;
 import com.daniel.blocksurvival.world.BlockType;
 
 import java.util.EnumMap;
@@ -13,8 +15,34 @@ public final class Items {
                     BlockType.class
             );
 
+    /*
+     * First inventory-only item.
+     *
+     * placedBlock is null because this cannot be placed
+     * directly into the voxel world.
+     */
+    public static final ItemDefinition MACHINE_CORE =
+            new ItemDefinition(
+                    "machine_core",
+                    "Machine Core",
+                    2,
+                    2,
+                    1,
+                    true,
+                    new AtlasTile(
+                            4,
+                            3
+                    ),
+                    null
+            );
+
     static {
         for (BlockType blockType : BlockType.values()) {
+            AtlasTile inventoryIcon =
+                    chooseBlockInventoryIcon(
+                            blockType
+                    );
+
             BLOCK_ITEMS.put(
                     blockType,
                     new ItemDefinition(
@@ -28,6 +56,7 @@ public final class Items {
                             1,
                             8,
                             false,
+                            inventoryIcon,
                             blockType
                     )
             );
@@ -43,6 +72,18 @@ public final class Items {
         return BLOCK_ITEMS.get(
                 blockType
         );
+    }
+
+    private static AtlasTile chooseBlockInventoryIcon(
+            BlockType blockType
+    ) {
+        return switch (blockType.getModel()) {
+            case CUBE ->
+                    blockType.getTopTexture();
+
+            case CROSS, TORCH ->
+                    blockType.getSideTexture();
+        };
     }
 
     private static String formatName(

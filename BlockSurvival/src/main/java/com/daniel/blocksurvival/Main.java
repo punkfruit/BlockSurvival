@@ -5,7 +5,9 @@ import com.daniel.blocksurvival.entity.EntityManager;
 import com.daniel.blocksurvival.entity.ItemEntity;
 import com.daniel.blocksurvival.graphics.*;
 import com.daniel.blocksurvival.inventory.Inventory;
+import com.daniel.blocksurvival.inventory.InventoryRenderer;
 import com.daniel.blocksurvival.inventory.ItemStack;
+import com.daniel.blocksurvival.inventory.Items;
 import com.daniel.blocksurvival.world.*;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -117,6 +119,7 @@ public class Main {
                     4,
                     3
             );
+    private InventoryRenderer inventoryRenderer;
 
     private float deltaTime = 0.0f;
     private float previousFrameTime = 0.0f;
@@ -184,32 +187,91 @@ public class Main {
                     }
 
                     if (
-                            key == GLFW_KEY_R &&
+                            key == GLFW_KEY_TAB &&
                                     action == GLFW_PRESS
                     ) {
-                        removeBlockRequested = true;
+                        inventoryRenderer.toggle();
+
+                        if (inventoryRenderer.isVisible()) {
+                            breakBlockRequested =
+                                    false;
+
+                            placeBlockRequested =
+                                    false;
+                        }
                     }
 
-                    if (action == GLFW_PRESS) {
+                    if (
+                            inventoryRenderer.isVisible() &&
+                                    action == GLFW_PRESS
+                    ) {
+                        switch (key) {
+                            case GLFW_KEY_LEFT,
+                                 GLFW_KEY_A ->
+                                    inventoryRenderer.moveSelection(
+                                            -1,
+                                            0,
+                                            playerInventory
+                                    );
+
+                            case GLFW_KEY_RIGHT,
+                                 GLFW_KEY_D ->
+                                    inventoryRenderer.moveSelection(
+                                            1,
+                                            0,
+                                            playerInventory
+                                    );
+
+                            case GLFW_KEY_UP,
+                                 GLFW_KEY_W ->
+                                    inventoryRenderer.moveSelection(
+                                            0,
+                                            -1,
+                                            playerInventory
+                                    );
+
+                            case GLFW_KEY_DOWN,
+                                 GLFW_KEY_S ->
+                                    inventoryRenderer.moveSelection(
+                                            0,
+                                            1,
+                                            playerInventory
+                                    );
+                        }
+                    }
+
+                    if (
+                            action == GLFW_PRESS &&
+                                    !inventoryRenderer.isVisible()
+                    ) {
                         if (
                                 key >= GLFW_KEY_1 &&
                                         key <= GLFW_KEY_9
                         ) {
-                            int slotNumber =
-                                    key - GLFW_KEY_1 + 1;
+                            if (action == GLFW_PRESS) {
+                                if (
+                                        key >= GLFW_KEY_1 &&
+                                                key <= GLFW_KEY_9
+                                ) {
+                                    int slotNumber =
+                                            key - GLFW_KEY_1 + 1;
 
-                            hotbar.selectSlot(
-                                    slotNumber
-                            );
+                                    hotbar.selectSlot(
+                                            slotNumber
+                                    );
 
-                            System.out.println(
-                                    "Selected hotbar slot " +
-                                            slotNumber +
-                                            ": " +
-                                            hotbar.getSelectedBlock()
-                            );
+                                    System.out.println(
+                                            "Selected hotbar slot " +
+                                                    slotNumber +
+                                                    ": " +
+                                                    hotbar.getSelectedBlock()
+                                    );
+                                }
+                            }
                         }
                     }
+
+
                 }
         );
 
@@ -217,17 +279,25 @@ public class Main {
                 window,
                 (windowHandle, button, action, mods) -> {
                     if (
+                            inventoryRenderer.isVisible()
+                    ) {
+                        return;
+                    }
+
+                    if (
                             button == GLFW_MOUSE_BUTTON_LEFT &&
                                     action == GLFW_PRESS
                     ) {
-                        breakBlockRequested = true;
+                        breakBlockRequested =
+                                true;
                     }
 
                     if (
                             button == GLFW_MOUSE_BUTTON_RIGHT &&
                                     action == GLFW_PRESS
                     ) {
-                        placeBlockRequested = true;
+                        placeBlockRequested =
+                                true;
                     }
                 }
         );
@@ -271,10 +341,13 @@ public class Main {
                     horizontalOffset *= sensitivity;
                     verticalOffset *= sensitivity;
 
-                    camera.rotate(
-                            horizontalOffset,
-                            verticalOffset
-                    );
+                    if (!inventoryRenderer.isVisible()) { //UNSURE IF THIS IS THE RIGHT PLACE
+                        camera.rotate(
+                                horizontalOffset,
+                                verticalOffset
+                        );
+                    }
+
                 }
         );
 
@@ -360,7 +433,21 @@ public class Main {
                 new UiRenderer(
                         atlasTexture
                 );
+        inventoryRenderer =
+                new InventoryRenderer(
+                        atlasTexture
+                );
 
+        int remaining =
+                playerInventory.collect(
+                        Items.MACHINE_CORE,
+                        1
+                );
+
+        System.out.println(
+                "Machine Core remaining: " +
+                        remaining
+        );
 
     }
 
@@ -1669,6 +1756,7 @@ vec3 litColor =
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
             camera.jump();
         }
+
     }
 
 
@@ -2216,53 +2304,59 @@ vec3 litColor =
                 }
             }
             else {
-                processInput();
 
-                camera.updatePhysics(
-                        world,
-                        deltaTime
-                );
 
-                entityManager.update(
-                        world,
-                        camera.getBodyCenterPosition(),
-                        playerInventory,
-                        deltaTime
-                );
+                if(!inventoryRenderer.isVisible()){
+                    camera.updatePhysics(
+                            world,
+                            deltaTime
+                    );
+
+                    processInput();
+                    entityManager.update(
+                            world,
+                            camera.getBodyCenterPosition(),
+                            playerInventory,
+                            deltaTime
+                    );
+
+                    if (removeBlockRequested) {
+                        /*
+                         * Remove the block in the center of the floor.
+                         * null represents empty space.
+                         */
+                        world.setBlock(
+                                0,
+                                0,
+                                0,
+                                null
+                        );
+
+                        rebuildBoundaryNeighbors(
+                                0,
+                                0,
+                                0
+                        );
+
+                        removeBlockRequested = false;
+                    }
+
+                    if (placeBlockRequested) {
+                        placeTargetedBlock();
+                        placeBlockRequested = false;
+                    }
+
+                    if (breakBlockRequested) {
+                        breakTargetedBlock();
+                        breakBlockRequested = false;
+                    }
+                }
+
 
                 currentRaycast =
                         calculateRaycast();
             }
-            if (removeBlockRequested) {
-                /*
-                 * Remove the block in the center of the floor.
-                 * null represents empty space.
-                 */
-                world.setBlock(
-                        0,
-                        0,
-                        0,
-                        null
-                );
 
-                rebuildBoundaryNeighbors(
-                        0,
-                        0,
-                        0
-                );
-
-                removeBlockRequested = false;
-            }
-
-            if (placeBlockRequested) {
-                placeTargetedBlock();
-                placeBlockRequested = false;
-            }
-
-            if (breakBlockRequested) {
-                breakTargetedBlock();
-                breakBlockRequested = false;
-            }
 
             sky.update(
                     deltaTime
@@ -2380,6 +2474,11 @@ vec3 litColor =
                     framebufferWidth,
                     framebufferHeight
             );
+            inventoryRenderer.render(
+                    playerInventory,
+                    framebufferWidth,
+                    framebufferHeight
+            );
 
             glfwSwapBuffers(window);
             glfwPollEvents();
@@ -2483,6 +2582,9 @@ vec3 litColor =
 
         if (itemEntityRenderer != null) {
             itemEntityRenderer.destroy();
+        }
+        if (inventoryRenderer != null) {
+            inventoryRenderer.destroy();
         }
 
         if (uiRenderer != null) {

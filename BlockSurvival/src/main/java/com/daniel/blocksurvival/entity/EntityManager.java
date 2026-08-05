@@ -25,6 +25,13 @@ public class EntityManager {
 
     private boolean updating;
 
+    private static final float ITEM_MERGE_RADIUS =
+            0.75f;
+
+    private static final float ITEM_MERGE_RADIUS_SQUARED =
+            ITEM_MERGE_RADIUS *
+                    ITEM_MERGE_RADIUS;
+
     public void spawn(
             Entity entity
     ) {
@@ -70,6 +77,12 @@ public class EntityManager {
 
         updating =
                 false;
+
+        /*
+         * Combine compatible item stacks before removing entities
+         * that were consumed by another stack.
+         */
+        mergeNearbyItems();
 
         entities.removeIf(
                 Entity::isRemoved
@@ -123,5 +136,71 @@ public class EntityManager {
     public void clear() {
         entities.clear();
         pendingEntities.clear();
+    }
+
+    private void mergeNearbyItems() {
+        int entityCount =
+                entities.size();
+
+        for (
+                int firstIndex = 0;
+                firstIndex < entityCount;
+                firstIndex++
+        ) {
+            Entity firstEntity =
+                    entities.get(
+                            firstIndex
+                    );
+
+            if (
+                    !(firstEntity instanceof ItemEntity firstItem) ||
+                            firstItem.isRemoved()
+            ) {
+                continue;
+            }
+
+            for (
+                    int secondIndex =
+                    firstIndex + 1;
+                    secondIndex < entityCount;
+                    secondIndex++
+            ) {
+                Entity secondEntity =
+                        entities.get(
+                                secondIndex
+                        );
+
+                if (
+                        !(secondEntity instanceof ItemEntity secondItem) ||
+                                secondItem.isRemoved()
+                ) {
+                    continue;
+                }
+
+                if (
+                        !firstItem.canMergeWith(
+                                secondItem
+                        )
+                ) {
+                    continue;
+                }
+
+                float distanceSquared =
+                        firstItem.distanceSquaredTo(
+                                secondItem
+                        );
+
+                if (
+                        distanceSquared >
+                                ITEM_MERGE_RADIUS_SQUARED
+                ) {
+                    continue;
+                }
+
+                firstItem.mergeFrom(
+                        secondItem
+                );
+            }
+        }
     }
 }

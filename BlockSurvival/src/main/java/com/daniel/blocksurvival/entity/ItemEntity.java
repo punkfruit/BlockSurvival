@@ -44,6 +44,9 @@ public class ItemEntity
             300.0f;
 
     private final BlockType blockType;
+    private int quantity;
+
+    private float pickupRetryTimer;
 
     private float age;
 
@@ -60,12 +63,30 @@ public class ItemEntity
 
     private static final float MAX_ATTRACTION_SPEED =
             8.0f;
+    private static final float MERGE_DELAY_SECONDS =
+            0.20f;
 
     public ItemEntity(
             float x,
             float y,
             float z,
             BlockType blockType
+    ) {
+        this(
+                x,
+                y,
+                z,
+                blockType,
+                1
+        );
+    }
+
+    public ItemEntity(
+            float x,
+            float y,
+            float z,
+            BlockType blockType,
+            int quantity
     ) {
         super(
                 x,
@@ -79,20 +100,21 @@ public class ItemEntity
             );
         }
 
+        if (quantity <= 0) {
+            throw new IllegalArgumentException(
+                    "Item quantity must be positive."
+            );
+        }
+
         this.blockType =
                 blockType;
 
-        /*
-         * Give the item a small initial hop.
-         */
+        this.quantity =
+                quantity;
+
         velocity.y =
                 2.5f;
 
-        /*
-         * Add a little deterministic sideways movement.
-         *
-         * We can randomize this more elegantly later.
-         */
         velocity.x =
                 0.55f;
 
@@ -113,6 +135,11 @@ public class ItemEntity
 
         age +=
                 deltaTime;
+
+        if (pickupRetryTimer > 0.0f) {
+            pickupRetryTimer -=
+                    deltaTime;
+        }
 
         if (
                 age >=
@@ -232,7 +259,8 @@ public class ItemEntity
         if (
                 playerPosition == null ||
                         age <
-                                PICKUP_DELAY_SECONDS
+                                PICKUP_DELAY_SECONDS ||
+                        pickupRetryTimer > 0.0f
         ) {
             return;
         }
@@ -613,7 +641,8 @@ public class ItemEntity
         if (
                 playerPosition == null ||
                         itemCollector == null ||
-                        age < PICKUP_DELAY_SECONDS
+                        age < PICKUP_DELAY_SECONDS ||
+                        pickupRetryTimer > 0.0f
         ) {
             return;
         }
@@ -642,37 +671,70 @@ public class ItemEntity
                             blockType
             );
 
+            pickupRetryTimer =
+                    1.0f;
+
             return;
         }
 
-        int quantityNotAccepted =
+        int quantityBeforePickup =
+                quantity;
+
+        int quantityRemaining =
                 itemCollector.collect(
                         definition,
-                        1
+                        quantity
                 );
 
+        int quantityAccepted =
+                quantityBeforePickup -
+                        quantityRemaining;
+
         /*
-         * The entire dropped stack fit.
+         * The inventory rejected the complete stack.
          */
-        if (quantityNotAccepted == 0) {
+        if (quantityAccepted <= 0) {
             System.out.println(
-                    "Picked up " +
+                    "No inventory space for " +
                             definition.displayName()
             );
 
+            pickupRetryTimer =
+                    1.5f;
+
+            return;
+        }
+
+        /*
+         * Some or all of the entity entered the inventory.
+         */
+        quantity =
+                quantityRemaining;
+
+        System.out.println(
+                "Picked up " +
+                        definition.displayName() +
+                        " x" +
+                        quantityAccepted
+        );
+
+        /*
+         * Remove the entity only when no items remain in it.
+         */
+        if (quantity <= 0) {
             remove();
             return;
         }
 
-        /*
-         * The inventory had no room.
-         *
-         * Leave the entity in the world rather than deleting it.
-         */
         System.out.println(
-                "No inventory space for " +
-                        definition.displayName()
+                definition.displayName() +
+                        " x" +
+                        quantity +
+                        " remains on the ground."
         );
+
+        pickupRetryTimer =
+                1.5f;
     }
 
     public BlockType getBlockType() {
@@ -689,5 +751,120 @@ public class ItemEntity
 
     public boolean isGrounded() {
         return grounded;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public void addQuantity(
+            int amount
+    ) {
+        if (amount <= 0) {
+            throw new IllegalArgumentException(
+                    "Added quantity must be positive."
+            );
+        }
+
+        quantity +=
+                amount;
+    }
+
+    public boolean canMergeWith(
+            ItemEntity other
+    ) {
+        if (
+                other == null ||
+                        other == this ||
+                        removed ||
+                        other.removed
+        ) {
+            return false;
+        }
+
+        /*
+         * Only identical item types may share a stack.
+         */
+        if (
+                blockType !=
+                        other.blockType
+        ) {
+            return false;
+        }
+
+        /*
+         * Let newly spawned items pop outward briefly before
+         * collapsing into nearby stacks.
+         */
+        if (
+                age < MERGE_DELAY_SECONDS ||
+                        other.age <
+                                MERGE_DELAY_SECONDS
+        ) {
+            return false;
+        }
+
+        ItemDefinition definition =
+                Items.fromBlock(
+                        blockType
+                );
+
+        if (definition == null) {
+            return false;
+        }
+
+        return quantity <
+                definition.maximumStackSize();
+    }
+
+    public int mergeFrom(
+            ItemEntity other
+    ) {
+        if (!canMergeWith(other)) {
+            return 0;
+        }
+
+        ItemDefinition definition =
+                Items.fromBlock(
+                        blockType
+                );
+
+        int availableCapacity =
+                definition.maximumStackSize() -
+                        quantity;
+
+        int amountTransferred =
+                Math.min(
+                        availableCapacity,
+                        other.quantity
+                );
+
+        if (amountTransferred <= 0) {
+            return 0;
+        }
+
+        quantity +=
+                amountTransferred;
+
+        other.quantity -=
+                amountTransferred;
+
+        /*
+         * The donor disappears only when its entire quantity
+         * moved into this stack.
+         */
+        if (other.quantity <= 0) {
+            other.remove();
+        }
+
+        return amountTransferred;
+    }
+
+    public float distanceSquaredTo(
+            ItemEntity other
+    ) {
+        return position.distanceSquared(
+                other.position
+        );
     }
 }

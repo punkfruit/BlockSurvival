@@ -1,5 +1,6 @@
 package com.daniel.blocksurvival.inventory;
 
+import com.daniel.blocksurvival.world.AtlasTile;
 import com.daniel.blocksurvival.world.BlockType;
 
 public record ItemDefinition(
@@ -9,6 +10,7 @@ public record ItemDefinition(
         int gridHeight,
         int maximumStackSize,
         boolean rotatable,
+        AtlasTile inventoryIcon,
         BlockType placedBlock
 ) {
     public ItemDefinition {
@@ -18,6 +20,15 @@ public record ItemDefinition(
         ) {
             throw new IllegalArgumentException(
                     "Item ID cannot be empty."
+            );
+        }
+
+        if (
+                displayName == null ||
+                        displayName.isBlank()
+        ) {
+            throw new IllegalArgumentException(
+                    "Display name cannot be empty."
             );
         }
 
@@ -33,6 +44,12 @@ public record ItemDefinition(
         if (maximumStackSize <= 0) {
             throw new IllegalArgumentException(
                     "Maximum stack size must be positive."
+            );
+        }
+
+        if (inventoryIcon == null) {
+            throw new IllegalArgumentException(
+                    "Item requires an inventory icon."
             );
         }
     }
