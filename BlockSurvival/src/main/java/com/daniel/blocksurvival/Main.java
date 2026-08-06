@@ -69,12 +69,14 @@ public class Main {
     private boolean placeBlockRequested = false;
 
     private Texture atlasTexture;
+    private Texture fontTexture;
     private Shader worldShader;
     private WorldRenderer worldRenderer;
     private SkyRenderer skyRenderer;
     private BlockOutlineRenderer outlineRenderer;
     private UiRenderer uiRenderer;
     private ItemEntityRenderer itemEntityRenderer;
+    private TextRenderer textRenderer;
 
     private RaycastResult currentRaycast;
 
@@ -419,6 +421,15 @@ public class Main {
         atlasTexture = new Texture(
                 "src/main/resources/textures/block_atlas.png"
         );
+        fontTexture =
+                new Texture(
+                        "src/main/resources/textures/font_atlas.png"
+                );
+
+        textRenderer =
+                new TextRenderer(
+                        fontTexture
+                );
         itemEntityRenderer =
                 new ItemEntityRenderer(
                         atlasTexture
@@ -435,19 +446,20 @@ public class Main {
                 );
         inventoryRenderer =
                 new InventoryRenderer(
-                        atlasTexture
+                        atlasTexture,
+                        textRenderer
                 );
 
+        /*
         int remaining =
                 playerInventory.collect(
                         Items.MACHINE_CORE,
                         1
                 );
 
-        System.out.println(
-                "Machine Core remaining: " +
-                        remaining
-        );
+         */
+
+
 
     }
 
@@ -2480,6 +2492,8 @@ vec3 litColor =
                     framebufferHeight
             );
 
+
+
             glfwSwapBuffers(window);
             glfwPollEvents();
         }
@@ -2525,13 +2539,16 @@ vec3 litColor =
                 );
 
         saveManager.savePlayer(
-                playerData
+                playerData,
+                playerInventory
         );
     }
 
     private void loadPlayer() {
         PlayerSaveData playerData =
-                saveManager.loadPlayer();
+                saveManager.loadPlayer(
+                        playerInventory
+                );
 
         if (playerData == null) {
             System.out.println(
@@ -2601,6 +2618,14 @@ vec3 litColor =
 
         if (atlasTexture != null) {
             atlasTexture.destroy();
+        }
+
+        if (textRenderer != null) {
+            textRenderer.destroy();
+        }
+
+        if (fontTexture != null) {
+            fontTexture.destroy();
         }
 
         glfwDestroyWindow(window);

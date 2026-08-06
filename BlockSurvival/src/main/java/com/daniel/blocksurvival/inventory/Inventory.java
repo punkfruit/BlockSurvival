@@ -310,5 +310,60 @@ public class Inventory
             boolean rotated
     ) {
     }
+    public boolean restoreStack(
+            ItemDefinition definition,
+            int quantity,
+            int gridX,
+            int gridY,
+            boolean rotated
+    ) {
+        if (
+                definition == null ||
+                        quantity <= 0 ||
+                        quantity >
+                                definition.maximumStackSize()
+        ) {
+            return false;
+        }
 
+        if (
+                rotated &&
+                        !definition.rotatable()
+        ) {
+            return false;
+        }
+
+        if (
+                !canPlace(
+                        definition,
+                        gridX,
+                        gridY,
+                        rotated
+                )
+        ) {
+            return false;
+        }
+
+        ItemStack stack =
+                new ItemStack(
+                        definition,
+                        quantity
+                );
+
+        stack.place(
+                gridX,
+                gridY,
+                rotated
+        );
+
+        stacks.add(
+                stack
+        );
+
+        return true;
+    }
+
+    public void clear() {
+        stacks.clear();
+    }
 }

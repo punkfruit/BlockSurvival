@@ -12,6 +12,7 @@ import static org.lwjgl.opengl.GL20.glVertexAttribPointer;
 import static org.lwjgl.opengl.GL30.*;
 import com.daniel.blocksurvival.graphics.Texture;
 import com.daniel.blocksurvival.world.AtlasTile;
+import com.daniel.blocksurvival.graphics.TextRenderer;
 import com.daniel.blocksurvival.world.BlockModel;
 import com.daniel.blocksurvival.world.BlockType;
 
@@ -27,6 +28,7 @@ public class InventoryRenderer {
     private final int vertexArrayId;
     private final int vertexBufferId;
     private final Texture atlasTexture;
+    private final TextRenderer textRenderer;
 
     private int selectedGridX =
             0;
@@ -44,10 +46,26 @@ public class InventoryRenderer {
             24;
 
     public InventoryRenderer(
-            Texture atlasTexture
+            Texture atlasTexture,
+            TextRenderer textRenderer
     ) {
+        if (atlasTexture == null) {
+            throw new IllegalArgumentException(
+                    "InventoryRenderer requires an atlas texture."
+            );
+        }
+
+        if (textRenderer == null) {
+            throw new IllegalArgumentException(
+                    "InventoryRenderer requires a text renderer."
+            );
+        }
+
         this.atlasTexture =
                 atlasTexture;
+
+        this.textRenderer =
+                textRenderer;
         String vertexShaderSource = """
         #version 330 core
 
@@ -352,8 +370,18 @@ public class InventoryRenderer {
                         panelPadding *
                                 2.0f;
 
+        float informationHeight =
+                cellSize *
+                        1.45f;
+
+        float informationGap =
+                cellSize *
+                        0.22f;
+
         float panelHeight =
                 gridHeight +
+                        informationGap +
+                        informationHeight +
                         panelPadding *
                                 2.0f;
 
@@ -424,6 +452,7 @@ public class InventoryRenderer {
                 cellSize,
                 cellGap
         );
+
         drawSelection(
                 inventory,
                 gridX,
@@ -431,6 +460,312 @@ public class InventoryRenderer {
                 cellSize,
                 cellGap
         );
+
+        float informationX =
+                gridX;
+
+        float informationY =
+                gridY +
+                        gridHeight +
+                        informationGap;
+
+        drawInformationBoxBackground(
+                informationX,
+                informationY,
+                gridWidth,
+                informationHeight,
+                cellSize
+        );
+
+        /*
+         * Text must be last because TextRenderer changes OpenGL state.
+         */
+        drawItemQuantities(
+                inventory,
+                gridX,
+                gridY,
+                cellSize,
+                cellGap,
+                framebufferWidth,
+                framebufferHeight
+        );
+
+        drawInformationText(
+                inventory,
+                informationX,
+                informationY,
+                cellSize,
+                framebufferWidth,
+                framebufferHeight
+        );
+    }
+
+    private void drawInformationBoxBackground(
+            float x,
+            float y,
+            float width,
+            float height,
+            float cellSize
+    ) {
+        drawRectangle(
+                x,
+                y,
+                width,
+                height,
+                0.31f,
+                0.33f,
+                0.35f,
+                1.0f
+        );
+
+        float border =
+                Math.max(
+                        2.0f,
+                        cellSize *
+                                0.04f
+                );
+
+        drawRectangle(
+                x + border,
+                y + border,
+                width -
+                        border *
+                                2.0f,
+                height -
+                        border *
+                                2.0f,
+                0.11f,
+                0.12f,
+                0.13f,
+                0.98f
+        );
+    }
+
+    private void drawInformationText(
+            Inventory inventory,
+            float x,
+            float y,
+            float cellSize,
+            int framebufferWidth,
+            int framebufferHeight
+    ) {
+        ItemStack selectedStack =
+                getStackAtSelectedCell(
+                        inventory
+                );
+
+        if (selectedStack == null) {
+            textRenderer.drawText(
+                    "EMPTY",
+                    x +
+                            cellSize *
+                                    0.16f,
+                    y +
+                            cellSize *
+                                    0.18f,
+                    1.0f,
+                    framebufferWidth,
+                    framebufferHeight
+            );
+
+            return;
+        }
+
+        ItemDefinition definition =
+                selectedStack.getDefinition();
+
+        int placedWidth =
+                definition.getPlacedWidth(
+                        selectedStack.isRotated()
+                );
+
+        int placedHeight =
+                definition.getPlacedHeight(
+                        selectedStack.isRotated()
+                );
+
+        float textX =
+                x +
+                        cellSize *
+                                0.16f;
+
+        float firstLineY =
+                y +
+                        cellSize *
+                                0.10f;
+
+        float lineSpacing =
+                cellSize *
+                        0.32f;
+
+        float nameScale =
+                1.15f;
+
+        float detailScale =
+                0.85f;
+
+        textRenderer.drawText(
+                definition.displayName()
+                        .toUpperCase(),
+                textX,
+                firstLineY,
+                nameScale,
+                framebufferWidth,
+                framebufferHeight
+        );
+
+        textRenderer.drawText(
+                "SIZE: " +
+                        placedWidth +
+                        " × " +
+                        placedHeight,
+                textX,
+                firstLineY +
+                        lineSpacing,
+                detailScale,
+                framebufferWidth,
+                framebufferHeight
+        );
+
+        textRenderer.drawText(
+                "STACK: " +
+                        selectedStack.getQuantity() +
+                        " / " +
+                        definition.maximumStackSize(),
+                textX,
+                firstLineY +
+                        lineSpacing *
+                                2.0f,
+                detailScale,
+                framebufferWidth,
+                framebufferHeight
+        );
+
+        String itemTypeText =
+                definition.placedBlock() == null
+                        ? "INVENTORY ITEM"
+                        : "PLACEABLE BLOCK";
+
+        textRenderer.drawText(
+                itemTypeText,
+                textX,
+                firstLineY +
+                        lineSpacing *
+                                3.0f,
+                detailScale,
+                framebufferWidth,
+                framebufferHeight
+        );
+    }
+
+    private void drawItemQuantities(
+            Inventory inventory,
+            float startX,
+            float startY,
+            float cellSize,
+            float cellGap,
+            int framebufferWidth,
+            int framebufferHeight
+    ) {
+        for (ItemStack stack : inventory.getStacks()) {
+            if (stack.getQuantity() <= 1) {
+                continue;
+            }
+
+            ItemDefinition definition =
+                    stack.getDefinition();
+
+            int itemWidth =
+                    definition.getPlacedWidth(
+                            stack.isRotated()
+                    );
+
+            int itemHeight =
+                    definition.getPlacedHeight(
+                            stack.isRotated()
+                    );
+
+            float itemX =
+                    startX +
+                            stack.getGridX() *
+                                    (
+                                            cellSize +
+                                                    cellGap
+                                    );
+
+            float itemY =
+                    startY +
+                            stack.getGridY() *
+                                    (
+                                            cellSize +
+                                                    cellGap
+                                    );
+
+            float itemPixelWidth =
+                    itemWidth *
+                            cellSize +
+                            (
+                                    itemWidth -
+                                            1
+                            ) *
+                                    cellGap;
+
+            float itemPixelHeight =
+                    itemHeight *
+                            cellSize +
+                            (
+                                    itemHeight -
+                                            1
+                            ) *
+                                    cellGap;
+
+            float itemBorder =
+                    Math.max(
+                            4.0f,
+                            cellSize *
+                                    0.075f
+                    );
+
+            String quantityText =
+                    Integer.toString(
+                            stack.getQuantity()
+                    );
+
+            /*
+             * 1.58 was quite large relative to these cells.
+             * Start here and tune freely.
+             */
+            float quantityScale =
+                    1.5f;
+
+            float textWidth =
+                    textRenderer.measureText(
+                            quantityText,
+                            quantityScale
+                    );
+
+            float quantityX =
+                    itemX +
+                            itemPixelWidth -
+                            itemBorder -
+                            textWidth;
+
+            float quantityY =
+                    itemY +
+                            itemPixelHeight -
+                            itemBorder -
+                            16.0f *
+                                    quantityScale;
+
+            textRenderer.drawText(
+                    quantityText,
+                    quantityX,
+                    quantityY,
+                    quantityScale,
+                    framebufferWidth,
+                    framebufferHeight
+            );
+        }
     }
 
     private void drawSelection(
@@ -577,6 +912,8 @@ public class InventoryRenderer {
                 0.20f,
                 1.0f
         );
+
+
     }
 
     private void drawGrid(
@@ -776,271 +1113,15 @@ public class InventoryRenderer {
                                     2.0f,
                     iconTile
             );
-            if (stack.getQuantity() > 1) {
-                drawNumber(
-                        stack.getQuantity(),
-                        itemX +
-                                itemPixelWidth -
-                                itemBorder -
-                                3.0f,
-                        itemY +
-                                itemPixelHeight -
-                                itemBorder -
-                                3.0f,
-                        cellSize *
-                                0.055f
-                );
-            }
+
+
+
+
+
         }
     }
 
-    private void drawNumber(
-            int number,
-            float rightX,
-            float bottomY,
-            float pixelSize
-    ) {
-        String text =
-                Integer.toString(
-                        Math.max(
-                                0,
-                                number
-                        )
-                );
 
-        float digitWidth =
-                pixelSize *
-                        3.0f;
-
-        float digitGap =
-                pixelSize;
-
-        float totalWidth =
-                text.length() *
-                        digitWidth +
-                        (
-                                text.length() -
-                                        1
-                        ) *
-                                digitGap;
-
-        float startX =
-                rightX -
-                        totalWidth;
-
-        /*
-         * Draw a small dark shadow first so the number stays
-         * readable over bright textures such as snow or glowstone.
-         */
-        for (
-                int index = 0;
-                index < text.length();
-                index++
-        ) {
-            int digit =
-                    text.charAt(index) -
-                            '0';
-
-            float digitX =
-                    startX +
-                            index *
-                                    (
-                                            digitWidth +
-                                                    digitGap
-                                    );
-
-            drawDigit(
-                    digit,
-                    digitX +
-                            pixelSize *
-                                    0.55f,
-                    bottomY -
-                            pixelSize *
-                                    5.0f +
-                            pixelSize *
-                                    0.55f,
-                    pixelSize,
-                    0.0f,
-                    0.0f,
-                    0.0f,
-                    0.85f
-            );
-        }
-
-        /*
-         * Bright foreground digits.
-         */
-        for (
-                int index = 0;
-                index < text.length();
-                index++
-        ) {
-            int digit =
-                    text.charAt(index) -
-                            '0';
-
-            float digitX =
-                    startX +
-                            index *
-                                    (
-                                            digitWidth +
-                                                    digitGap
-                                    );
-
-            drawDigit(
-                    digit,
-                    digitX,
-                    bottomY -
-                            pixelSize *
-                                    5.0f,
-                    pixelSize,
-                    1.0f,
-                    1.0f,
-                    1.0f,
-                    1.0f
-            );
-        }
-    }
-
-    private void drawDigit(
-            int digit,
-            float x,
-            float y,
-            float pixelSize,
-            float red,
-            float green,
-            float blue,
-            float alpha
-    ) {
-        /*
-         * Each digit is a 3×5 bitmap.
-         */
-        String[] rows =
-                switch (digit) {
-                    case 0 -> new String[] {
-                            "111",
-                            "101",
-                            "101",
-                            "101",
-                            "111"
-                    };
-
-                    case 1 -> new String[] {
-                            "010",
-                            "110",
-                            "010",
-                            "010",
-                            "111"
-                    };
-
-                    case 2 -> new String[] {
-                            "111",
-                            "001",
-                            "111",
-                            "100",
-                            "111"
-                    };
-
-                    case 3 -> new String[] {
-                            "111",
-                            "001",
-                            "111",
-                            "001",
-                            "111"
-                    };
-
-                    case 4 -> new String[] {
-                            "101",
-                            "101",
-                            "111",
-                            "001",
-                            "001"
-                    };
-
-                    case 5 -> new String[] {
-                            "111",
-                            "100",
-                            "111",
-                            "001",
-                            "111"
-                    };
-
-                    case 6 -> new String[] {
-                            "111",
-                            "100",
-                            "111",
-                            "101",
-                            "111"
-                    };
-
-                    case 7 -> new String[] {
-                            "111",
-                            "001",
-                            "010",
-                            "010",
-                            "010"
-                    };
-
-                    case 8 -> new String[] {
-                            "111",
-                            "101",
-                            "111",
-                            "101",
-                            "111"
-                    };
-
-                    case 9 -> new String[] {
-                            "111",
-                            "101",
-                            "111",
-                            "001",
-                            "111"
-                    };
-
-                    default -> new String[] {
-                            "000",
-                            "000",
-                            "000",
-                            "000",
-                            "000"
-                    };
-                };
-
-        for (
-                int row = 0;
-                row < rows.length;
-                row++
-        ) {
-            for (
-                    int column = 0;
-                    column < 3;
-                    column++
-            ) {
-                if (
-                        rows[row].charAt(
-                                column
-                        ) != '1'
-                ) {
-                    continue;
-                }
-
-                drawRectangle(
-                        x +
-                                column *
-                                        pixelSize,
-                        y +
-                                row *
-                                        pixelSize,
-                        pixelSize,
-                        pixelSize,
-                        red,
-                        green,
-                        blue,
-                        alpha
-                );
-            }
-        }
-    }
 
     private ItemColor createItemColor(
             String itemId

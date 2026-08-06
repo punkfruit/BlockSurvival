@@ -5,6 +5,7 @@ import com.daniel.blocksurvival.world.BlockModel;
 import com.daniel.blocksurvival.world.BlockType;
 
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 
 public final class Items {
@@ -15,6 +16,10 @@ public final class Items {
                     BlockType.class
             );
 
+    private static final Map<String, ItemDefinition>
+            ITEMS_BY_ID =
+            new HashMap<>();
+
     /*
      * First inventory-only item.
      *
@@ -22,18 +27,20 @@ public final class Items {
      * directly into the voxel world.
      */
     public static final ItemDefinition MACHINE_CORE =
-            new ItemDefinition(
-                    "machine_core",
-                    "Machine Core",
-                    2,
-                    2,
-                    1,
-                    true,
-                    new AtlasTile(
-                            4,
-                            3
-                    ),
-                    null
+            register(
+                    new ItemDefinition(
+                            "machine_core",
+                            "Machine Core",
+                            2,
+                            2,
+                            1,
+                            true,
+                            new AtlasTile(
+                                    4,
+                                    3
+                            ),
+                            null
+                    )
             );
 
     static {
@@ -43,35 +50,66 @@ public final class Items {
                             blockType
                     );
 
+            ItemDefinition definition =
+                    register(
+                            new ItemDefinition(
+                                    "block." +
+                                            blockType.name()
+                                                    .toLowerCase(),
+                                    formatName(
+                                            blockType.name()
+                                    ),
+                                    1,
+                                    1,
+                                    8,
+                                    false,
+                                    inventoryIcon,
+                                    blockType
+                            )
+                    );
+
             BLOCK_ITEMS.put(
                     blockType,
-                    new ItemDefinition(
-                            "block." +
-                                    blockType.name()
-                                            .toLowerCase(),
-                            formatName(
-                                    blockType.name()
-                            ),
-                            1,
-                            1,
-                            8,
-                            false,
-                            inventoryIcon,
-                            blockType
-                    )
+                    definition
             );
+
         }
     }
 
     private Items() {
     }
 
+    public static ItemDefinition getById(
+            String id
+    ) {
+        return ITEMS_BY_ID.get(
+                id
+        );
+    }
     public static ItemDefinition fromBlock(
             BlockType blockType
     ) {
         return BLOCK_ITEMS.get(
                 blockType
         );
+    }
+    private static ItemDefinition register(
+            ItemDefinition definition
+    ) {
+        ItemDefinition existing =
+                ITEMS_BY_ID.put(
+                        definition.id(),
+                        definition
+                );
+
+        if (existing != null) {
+            throw new IllegalStateException(
+                    "Duplicate item ID: " +
+                            definition.id()
+            );
+        }
+
+        return definition;
     }
 
     private static AtlasTile chooseBlockInventoryIcon(

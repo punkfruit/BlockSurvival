@@ -8,6 +8,13 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import com.daniel.blocksurvival.inventory.Inventory;
+import com.daniel.blocksurvival.inventory.ItemDefinition;
+import com.daniel.blocksurvival.inventory.ItemStack;
+import com.daniel.blocksurvival.inventory.Items;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class SaveManager {
 
@@ -47,7 +54,7 @@ public class SaveManager {
     private static final int PLAYER_FILE_MAGIC =
             0x4253504C;
 
-    private static final int PLAYER_FILE_VERSION = 1;
+    private static final int PLAYER_FILE_VERSION = 2;
 
 
 
@@ -509,7 +516,8 @@ public class SaveManager {
     }
 
     public void savePlayer(
-            PlayerSaveData playerData
+            PlayerSaveData playerData,
+            Inventory inventory
     ) {
         Path playerFile =
                 worldDirectory.resolve(
@@ -558,6 +566,11 @@ public class SaveManager {
                     playerData.selectedHotbarSlot()
             );
 
+            writeInventory(
+                    output,
+                    inventory
+            );
+
             System.out.println(
                     "Saved player."
             );
@@ -571,7 +584,9 @@ public class SaveManager {
         }
     }
 
-    public PlayerSaveData loadPlayer() {
+    public PlayerSaveData loadPlayer(
+            Inventory inventory
+    ) {
         Path playerFile =
                 worldDirectory.resolve(
                         "player.dat"
@@ -603,7 +618,11 @@ public class SaveManager {
             int version =
                     input.readInt();
 
-            if (version != PLAYER_FILE_VERSION) {
+            if (
+                    version < 1 ||
+                            version >
+                                    PLAYER_FILE_VERSION
+            ) {
                 throw new IOException(
                         "Unsupported player save version: "
                                 + version
@@ -627,6 +646,19 @@ public class SaveManager {
 
             int selectedHotbarSlot =
                     input.readInt();
+
+            if (version >= 2) {
+                readInventory(
+                        input,
+                        inventory
+                );
+            }
+            else {
+                /*
+                 * Version 1 had no saved inventory.
+                 */
+                inventory.clear();
+            }
 
             System.out.println(
                     "Loaded player."
@@ -658,4 +690,187 @@ public class SaveManager {
             return null;
         }
     }
+    private void writeInventory(
+            DataOutputStream output,
+            Inventory inventory
+    ) throws IOException {
+        output.writeInt(
+                inventory.getWidth()
+        );
+
+        output.writeInt(
+                inventory.getHeight()
+        );
+
+        output.writeInt(
+                inventory.getStacks()
+                        .size()
+        );
+
+        for (
+                ItemStack stack :
+                inventory.getStacks()
+        ) {
+            output.writeUTF(
+                    stack.getDefinition()
+                            .id()
+            );
+
+            output.writeInt(
+                    stack.getQuantity()
+            );
+
+            output.writeInt(
+                    stack.getGridX()
+            );
+
+            output.writeInt(
+                    stack.getGridY()
+            );
+
+            output.writeBoolean(
+                    stack.isRotated()
+            );
+        }
+    }
+    private void readInventory(
+            DataInputStream input,
+            Inventory inventory
+    ) throws IOException {
+        int savedWidth =
+                input.readInt();
+
+        int savedHeight =
+                input.readInt();
+
+        if (
+                savedWidth !=
+                        inventory.getWidth() ||
+                        savedHeight !=
+                                inventory.getHeight()
+        ) {
+            throw new IOException(
+                    "Saved inventory size " +
+                            savedWidth +
+                            "x" +
+                            savedHeight +
+                            " does not match current inventory size " +
+                            inventory.getWidth() +
+                            "x" +
+                            inventory.getHeight() +
+                            "."
+            );
+        }
+
+        int stackCount =
+                input.readInt();
+
+        if (
+                stackCount < 0 ||
+                        stackCount >
+                                savedWidth *
+                                        savedHeight
+        ) {
+            throw new IOException(
+                    "Invalid inventory stack count: " +
+                            stackCount
+            );
+        }
+
+        List<SavedInventoryStack> savedStacks =
+                new ArrayList<>();
+
+        for (
+                int index = 0;
+                index < stackCount;
+                index++
+        ) {
+            String itemId =
+                    input.readUTF();
+
+            int quantity =
+                    input.readInt();
+
+            int gridX =
+                    input.readInt();
+
+            int gridY =
+                    input.readInt();
+
+            boolean rotated =
+                    input.readBoolean();
+
+            ItemDefinition definition =
+                    Items.getById(
+                            itemId
+                    );
+
+            if (definition == null) {
+                throw new IOException(
+                        "Unknown saved item ID: " +
+                                itemId
+                );
+            }
+
+            savedStacks.add(
+                    new SavedInventoryStack(
+                            definition,
+                            quantity,
+                            gridX,
+                            gridY,
+                            rotated
+                    )
+            );
+        }
+
+        /*
+         * Only replace the current inventory after the entire
+         * saved inventory was read successfully.
+         */
+        inventory.clear();
+
+        for (
+                SavedInventoryStack savedStack :
+                savedStacks
+        ) {
+            boolean restored =
+                    inventory.restoreStack(
+                            savedStack.definition(),
+                            savedStack.quantity(),
+                            savedStack.gridX(),
+                            savedStack.gridY(),
+                            savedStack.rotated()
+                    );
+
+            if (!restored) {
+                inventory.clear();
+
+                throw new IOException(
+                        "Could not restore item " +
+                                savedStack.definition()
+                                        .id() +
+                                " at [" +
+                                savedStack.gridX() +
+                                ", " +
+                                savedStack.gridY() +
+                                "]."
+                );
+            }
+        }
+
+        System.out.println(
+                "Loaded player inventory with " +
+                        stackCount +
+                        " stack(s)."
+        );
+    }
+    private record SavedInventoryStack(
+            ItemDefinition definition,
+            int quantity,
+            int gridX,
+            int gridY,
+            boolean rotated
+    ) {
+    }
+
 }
