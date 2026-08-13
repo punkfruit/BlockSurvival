@@ -1,8 +1,11 @@
 package com.daniel.blocksurvival.graphics;
 
 import com.daniel.blocksurvival.Hotbar;
+import com.daniel.blocksurvival.inventory.ItemDefinition;
 import com.daniel.blocksurvival.world.AtlasTile;
 import com.daniel.blocksurvival.world.BlockType;
+import com.daniel.blocksurvival.inventory.Inventory;
+import com.daniel.blocksurvival.inventory.ItemDefinition;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
 
@@ -12,6 +15,7 @@ public class UiRenderer {
 
     private final Shader shader;
     private final Texture atlasTexture;
+    private final TextRenderer textRenderer;
 
     private final int vao;
     private final int vbo;
@@ -22,8 +26,9 @@ public class UiRenderer {
     private static final int ICON_PADDING = 8;
     private static final int BOTTOM_MARGIN = 24;
 
-    public UiRenderer(Texture atlasTexture) {
+    public UiRenderer(Texture atlasTexture, TextRenderer textRenderer) {
         this.atlasTexture = atlasTexture;
+        this.textRenderer = textRenderer;
 
         shader = createShader();
 
@@ -115,6 +120,7 @@ public class UiRenderer {
 
     public void render(
             Hotbar hotbar,
+            Inventory inventory,
             int screenWidth,
             int screenHeight
     ) {
@@ -195,18 +201,31 @@ public class UiRenderer {
                     selected
             );
 
-            BlockType block =
-                    hotbar.getBlock(
+            ItemDefinition item =
+                    hotbar.getItem(
                             slotIndex
                     );
 
-            drawBlockIcon(
-                    block,
-                    slotX + ICON_PADDING,
-                    hotbarY + ICON_PADDING,
-                    SLOT_SIZE -
-                            ICON_PADDING * 2
-            );
+            if (item != null) {
+                int quantity =
+                        inventory.getQuantity(
+                                item
+                        );
+
+                boolean available =
+                        quantity > 0;
+
+                drawItemIcon(
+                        item,
+                        slotX + ICON_PADDING,
+                        hotbarY + ICON_PADDING,
+                        SLOT_SIZE -
+                                ICON_PADDING * 2,
+                        available
+                );
+            }
+
+
         }
 
         drawCrosshair(
@@ -215,6 +234,15 @@ public class UiRenderer {
         );
 
         shader.unbind();
+
+        drawHotbarQuantities(
+                hotbar,
+                inventory,
+                hotbarX,
+                hotbarY,
+                screenWidth,
+                screenHeight
+        );
 
         glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
@@ -276,17 +304,15 @@ public class UiRenderer {
         );
     }
 
-    private void drawBlockIcon(
-            BlockType block,
+    private void drawItemIcon(
+            ItemDefinition item,
             float x,
             float y,
-            float size
+            float size,
+            boolean available
     ) {
-        /*
-         * Use the block's top texture as its hotbar icon.
-         */
         AtlasTile tile =
-                block.getTopTexture();
+                item.inventoryIcon();
 
         float tileSize =
                 BlockType.getTileSize();
@@ -307,6 +333,21 @@ public class UiRenderer {
                 minimumV +
                         tileSize;
 
+        Vector4f color =
+                available
+                        ? new Vector4f(
+                        1.0f,
+                        1.0f,
+                        1.0f,
+                        1.0f
+                )
+                        : new Vector4f(
+                        0.28f,
+                        0.28f,
+                        0.28f,
+                        0.55f
+                );
+
         drawTexturedQuad(
                 x,
                 y,
@@ -315,7 +356,8 @@ public class UiRenderer {
                 minimumU,
                 minimumV,
                 maximumU,
-                maximumV
+                maximumV,
+                color
         );
     }
 
@@ -400,7 +442,8 @@ public class UiRenderer {
             float minimumU,
             float minimumV,
             float maximumU,
-            float maximumV
+            float maximumV,
+            Vector4f color
     ) {
         shader.setInt(
                 "useTexture",
@@ -409,12 +452,7 @@ public class UiRenderer {
 
         shader.setVector4(
                 "uiColor",
-                new Vector4f(
-                        1.0f,
-                        1.0f,
-                        1.0f,
-                        1.0f
-                )
+                color
         );
 
         glActiveTexture(
@@ -433,6 +471,83 @@ public class UiRenderer {
                 maximumU,
                 maximumV
         );
+    }
+
+    private void drawHotbarQuantities(
+            Hotbar hotbar,
+            Inventory inventory,
+            float hotbarX,
+            float hotbarY,
+            int screenWidth,
+            int screenHeight
+    ) {
+        for (
+                int slotIndex = 0;
+                slotIndex < hotbar.getSlotCount();
+                slotIndex++
+        ) {
+            ItemDefinition item =
+                    hotbar.getItem(
+                            slotIndex
+                    );
+
+            if (item == null) {
+                continue;
+            }
+
+            int quantity =
+                    inventory.getQuantity(
+                            item
+                    );
+
+            if (quantity <= 0) {
+                continue;
+            }
+
+            String quantityText =
+                    Integer.toString(
+                            quantity
+                    );
+
+            float scale =
+                    0.70f;
+
+            float textWidth =
+                    textRenderer.measureText(
+                            quantityText,
+                            scale
+                    );
+
+            float slotX =
+                    hotbarX +
+                            slotIndex *
+                                    (
+                                            SLOT_SIZE +
+                                                    SLOT_GAP
+                                    );
+
+            float textX =
+                    slotX +
+                            SLOT_SIZE -
+                            4.0f -
+                            textWidth;
+
+            float textY =
+                    hotbarY +
+                            SLOT_SIZE -
+                            4.0f -
+                            16.0f *
+                                    scale;
+
+            textRenderer.drawText(
+                    quantityText,
+                    textX,
+                    textY,
+                    scale,
+                    screenWidth,
+                    screenHeight
+            );
+        }
     }
 
     private void uploadAndDrawQuad(

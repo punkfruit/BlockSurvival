@@ -4,10 +4,7 @@ import com.daniel.blocksurvival.entity.Entity;
 import com.daniel.blocksurvival.entity.EntityManager;
 import com.daniel.blocksurvival.entity.ItemEntity;
 import com.daniel.blocksurvival.graphics.*;
-import com.daniel.blocksurvival.inventory.Inventory;
-import com.daniel.blocksurvival.inventory.InventoryRenderer;
-import com.daniel.blocksurvival.inventory.ItemStack;
-import com.daniel.blocksurvival.inventory.Items;
+import com.daniel.blocksurvival.inventory.*;
 import com.daniel.blocksurvival.world.*;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -242,35 +239,98 @@ public class Main {
                         }
                     }
 
-                    if (
-                            action == GLFW_PRESS &&
-                                    !inventoryRenderer.isVisible()
-                    ) {
+
                         if (
-                                key >= GLFW_KEY_1 &&
+                                action == GLFW_PRESS &&
+                                        key >= GLFW_KEY_1 &&
                                         key <= GLFW_KEY_9
                         ) {
-                            if (action == GLFW_PRESS) {
-                                if (
-                                        key >= GLFW_KEY_1 &&
-                                                key <= GLFW_KEY_9
-                                ) {
-                                    int slotNumber =
-                                            key - GLFW_KEY_1 + 1;
+                            int slotNumber =
+                                    key -
+                                            GLFW_KEY_1 +
+                                            1;
 
-                                    hotbar.selectSlot(
-                                            slotNumber
-                                    );
+                            /*
+                             * Inventory open:
+                             * assign selected item to quick slot.
+                             */
+                            if (inventoryRenderer.isVisible()) {
+                                ItemDefinition selectedItem =
+                                        inventoryRenderer.getSelectedItem(
+                                                playerInventory
+                                        );
 
+                                if (selectedItem == null) {
                                     System.out.println(
-                                            "Selected hotbar slot " +
-                                                    slotNumber +
-                                                    ": " +
-                                                    hotbar.getSelectedBlock()
+                                            "No inventory item selected."
                                     );
+
+                                    return;
                                 }
+
+                                hotbar.assignSlot(
+                                        slotNumber - 1,
+                                        selectedItem
+                                );
+
+                                System.out.println(
+                                        "Assigned " +
+                                                selectedItem.displayName() +
+                                                " to hotbar slot " +
+                                                slotNumber
+                                );
+
+                                return;
                             }
+
+                            /*
+                             * Inventory closed:
+                             * select quick slot normally.
+                             */
+                            hotbar.selectSlot(
+                                    slotNumber
+                            );
+
+                            ItemDefinition selectedItem =
+                                    hotbar.getSelectedItem();
+
+                            System.out.println(
+                                    "Selected hotbar slot " +
+                                            slotNumber +
+                                            ": " +
+                                            (
+                                                    selectedItem == null
+                                                            ? "Empty"
+                                                            : selectedItem.displayName()
+                                            )
+                            );
                         }
+
+
+                    
+
+                    if (
+                            !inventoryRenderer.isVisible() &&
+                                    action == GLFW_PRESS &&
+                                    (
+                                            key == GLFW_KEY_BACKSPACE ||
+                                                    key == GLFW_KEY_DELETE
+                                    )
+                    ) {
+                        int selectedIndex =
+                                hotbar.getSelectedIndex();
+
+                        hotbar.clearSlot(
+                                selectedIndex
+                        );
+
+                        System.out.println(
+                                "Cleared hotbar slot " +
+                                        (
+                                                selectedIndex +
+                                                        1
+                                        )
+                        );
                     }
 
 
@@ -311,11 +371,13 @@ public class Main {
                             verticalOffset
                     );
 
+                    ItemDefinition selectedItem =
+                            hotbar.getSelectedItem();
+
                     System.out.println(
-                            "Selected hotbar slot " +
-                                    (hotbar.getSelectedIndex() + 1) +
-                                    ": " +
-                                    hotbar.getSelectedBlock()
+                            selectedItem == null
+                                    ? "Empty"
+                                    : selectedItem.displayName()
                     );
                 }
         );
@@ -352,6 +414,8 @@ public class Main {
 
                 }
         );
+
+
 
         glfwMakeContextCurrent(window);
 
@@ -442,7 +506,8 @@ public class Main {
                 );
         uiRenderer =
                 new UiRenderer(
-                        atlasTexture
+                        atlasTexture,
+                        textRenderer
                 );
         inventoryRenderer =
                 new InventoryRenderer(
@@ -450,14 +515,14 @@ public class Main {
                         textRenderer
                 );
 
-        /*
+
         int remaining =
                 playerInventory.collect(
                         Items.MACHINE_CORE,
                         1
                 );
 
-         */
+
 
 
 
@@ -1880,7 +1945,7 @@ vec3 litColor =
 
         System.out.println(
                 "Placing " +
-                        hotbar.getSelectedBlock() +
+                        hotbar.getSelectedItem() +
                         " at: " +
                         placementX + ", " +
                         placementY + ", " +
@@ -1899,8 +1964,37 @@ vec3 litColor =
             return;
         }
 
+        ItemDefinition selectedItem =
+                hotbar.getSelectedItem();
+
+        if (selectedItem == null) {
+            System.out.println(
+                    "Selected hotbar slot is empty."
+            );
+
+            return;
+        }
+
         BlockType selectedBlock =
-                hotbar.getSelectedBlock();
+                selectedItem.placedBlock();
+
+        if (selectedBlock == null) {
+            System.out.println(
+                    selectedItem.displayName() +
+                            " cannot be placed as a block."
+            );
+
+            return;
+        }
+
+        if (selectedItem == null) {
+            System.out.println(
+                    "No item definition exists for " +
+                            selectedBlock
+            );
+
+            return;
+        }
 
         BlockDirection direction = null;
         if (selectedBlock == BlockType.TORCH) {
@@ -2001,6 +2095,21 @@ vec3 litColor =
             }
         }
 
+        if (
+                !playerInventory.contains(
+                        selectedItem,
+                        1
+                )
+        ) {
+            System.out.println(
+                    "No " +
+                            selectedItem.displayName() +
+                            " in inventory."
+            );
+
+            return;
+        }
+
         world.setBlock(
                 placementX,
                 placementY,
@@ -2014,6 +2123,25 @@ vec3 litColor =
                 placementZ,
                 direction
         );
+
+        boolean consumed =
+                playerInventory.remove(
+                        selectedItem,
+                        1
+                );
+
+        if (!consumed) {
+            /*
+             * This should never happen because we checked immediately
+             * before placement, but leave the warning here in case the
+             * inventory system later becomes asynchronous.
+             */
+            System.err.println(
+                    "Placed " +
+                            selectedItem.displayName() +
+                            " but failed to consume it from inventory."
+            );
+        }
 
         rebuildEditedChunkImmediately(
                 placementX,
@@ -2483,6 +2611,7 @@ vec3 litColor =
             }
             uiRenderer.render(
                     hotbar,
+                    playerInventory,
                     framebufferWidth,
                     framebufferHeight
             );

@@ -1,38 +1,103 @@
 package com.daniel.blocksurvival;
 
+import com.daniel.blocksurvival.inventory.ItemDefinition;
+import com.daniel.blocksurvival.inventory.Items;
 import com.daniel.blocksurvival.world.BlockType;
 
 public class Hotbar {
 
-    /*
-     * The blocks available in the creative hotbar.
-     *
-     * The array order determines which block appears
-     * in each slot.
-     */
-    private final BlockType[] blocks = {
-            BlockType.GRASS,
-            BlockType.DIRT,
-            BlockType.STONE,
-            BlockType.TORCH,
-            BlockType.WOOD,
-            BlockType.LEAVES,
-            BlockType.SNOW,
-            BlockType.GLOWSTONE,
-            BlockType.WATER
-    };
+    private static final int SLOT_COUNT =
+            9;
 
     /*
-     * Array indexes begin at zero:
+     * The hotbar stores references to item definitions.
      *
-     * Slot 1 = index 0
-     * Slot 2 = index 1
-     * ...
-     * Slot 9 = index 8
+     * The actual quantities still live in the player's
+     * Inventory. This is only a quick-access assignment.
      */
-    private int selectedIndex = 0;
+    private final ItemDefinition[] items =
+            new ItemDefinition[
+                    SLOT_COUNT
+                    ];
 
-    public void scroll(double verticalOffset) {
+    private int selectedIndex =
+            0;
+
+    public Hotbar() {
+        /*
+         * Temporary assignments matching the old creative
+         * hotbar so existing controls continue to work.
+         *
+         * Later these will be assigned by the player through
+         * the inventory UI.
+         */
+        assignSlot(
+                0,
+                Items.fromBlock(
+                        BlockType.GRASS
+                )
+        );
+
+        assignSlot(
+                1,
+                Items.fromBlock(
+                        BlockType.DIRT
+                )
+        );
+
+        assignSlot(
+                2,
+                Items.fromBlock(
+                        BlockType.STONE
+                )
+        );
+
+        assignSlot(
+                3,
+                Items.fromBlock(
+                        BlockType.TORCH
+                )
+        );
+
+        assignSlot(
+                4,
+                Items.fromBlock(
+                        BlockType.WOOD
+                )
+        );
+
+        assignSlot(
+                5,
+                Items.fromBlock(
+                        BlockType.LEAVES
+                )
+        );
+
+        assignSlot(
+                6,
+                Items.fromBlock(
+                        BlockType.SNOW
+                )
+        );
+
+        assignSlot(
+                7,
+                Items.fromBlock(
+                        BlockType.GLOWSTONE
+                )
+        );
+
+        assignSlot(
+                8,
+                Items.fromBlock(
+                        BlockType.WATER
+                )
+        );
+    }
+
+    public void scroll(
+            double verticalOffset
+    ) {
         if (verticalOffset > 0.0) {
             selectPrevious();
         }
@@ -45,37 +110,34 @@ public class Hotbar {
     public void selectNext() {
         selectedIndex++;
 
-        /*
-         * Wrap from the final slot back to the first.
-         */
-        if (selectedIndex >= blocks.length) {
-            selectedIndex = 0;
+        if (
+                selectedIndex >=
+                        items.length
+        ) {
+            selectedIndex =
+                    0;
         }
     }
 
     public void selectPrevious() {
         selectedIndex--;
 
-        /*
-         * Wrap from the first slot to the final slot.
-         */
         if (selectedIndex < 0) {
             selectedIndex =
-                    blocks.length - 1;
+                    items.length - 1;
         }
     }
 
-    public void selectSlot(int slotNumber) {
-        /*
-         * The player uses slot numbers 1 through 9,
-         * while the array uses indexes 0 through 8.
-         */
+    public void selectSlot(
+            int slotNumber
+    ) {
         int requestedIndex =
                 slotNumber - 1;
 
         if (
                 requestedIndex < 0 ||
-                        requestedIndex >= blocks.length
+                        requestedIndex >=
+                                items.length
         ) {
             return;
         }
@@ -84,8 +146,55 @@ public class Hotbar {
                 requestedIndex;
     }
 
-    public BlockType getSelectedBlock() {
-        return blocks[selectedIndex];
+    public void assignSlot(
+            int index,
+            ItemDefinition item
+    ) {
+        if (
+                index < 0 ||
+                        index >=
+                                items.length
+        ) {
+            throw new IndexOutOfBoundsException(
+                    "Invalid hotbar slot: " +
+                            index
+            );
+        }
+
+        items[index] =
+                item;
+    }
+
+    public void clearSlot(
+            int index
+    ) {
+        assignSlot(
+                index,
+                null
+        );
+    }
+
+    public ItemDefinition getSelectedItem() {
+        return items[
+                selectedIndex
+                ];
+    }
+
+    public ItemDefinition getItem(
+            int index
+    ) {
+        if (
+                index < 0 ||
+                        index >=
+                                items.length
+        ) {
+            throw new IndexOutOfBoundsException(
+                    "Invalid hotbar slot: " +
+                            index
+            );
+        }
+
+        return items[index];
     }
 
     public int getSelectedIndex() {
@@ -93,19 +202,6 @@ public class Hotbar {
     }
 
     public int getSlotCount() {
-        return blocks.length;
-    }
-
-    public BlockType getBlock(int index) {
-        if (
-                index < 0 ||
-                        index >= blocks.length
-        ) {
-            throw new IndexOutOfBoundsException(
-                    "Invalid hotbar slot: " + index
-            );
-        }
-
-        return blocks[index];
+        return items.length;
     }
 }

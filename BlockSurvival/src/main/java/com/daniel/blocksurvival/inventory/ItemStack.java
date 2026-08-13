@@ -72,6 +72,25 @@ public class ItemStack {
                 amount;
     }
 
+    public void removeQuantity(
+            int amount
+    ) {
+        if (
+                amount <= 0 ||
+                        amount > quantity
+        ) {
+            throw new IllegalArgumentException(
+                    "Cannot remove " +
+                            amount +
+                            " from stack quantity " +
+                            quantity
+            );
+        }
+
+        quantity -=
+                amount;
+    }
+
     public int getGridX() {
         return gridX;
     }

@@ -363,6 +363,122 @@ public class Inventory
         return true;
     }
 
+    public int getQuantity(
+            ItemDefinition definition
+    ) {
+        if (definition == null) {
+            return 0;
+        }
+
+        int total =
+                0;
+
+        for (ItemStack stack : stacks) {
+            if (
+                    stack.getDefinition() ==
+                            definition
+            ) {
+                total +=
+                        stack.getQuantity();
+            }
+        }
+
+        return total;
+    }
+
+    public boolean contains(
+            ItemDefinition definition,
+            int quantity
+    ) {
+        if (
+                definition == null ||
+                        quantity <= 0
+        ) {
+            return false;
+        }
+
+        return getQuantity(
+                definition
+        ) >= quantity;
+    }
+
+    public boolean remove(
+            ItemDefinition definition,
+            int quantity
+    ) {
+        if (
+                definition == null ||
+                        quantity <= 0
+        ) {
+            return false;
+        }
+
+        /*
+         * Check first so removal is all-or-nothing.
+         *
+         * We don't want a request for 5 Stone to remove 3
+         * and then discover that the other 2 don't exist.
+         */
+        if (
+                !contains(
+                        definition,
+                        quantity
+                )
+        ) {
+            return false;
+        }
+
+        int remainingToRemove =
+                quantity;
+
+        for (
+                int index =
+                stacks.size() - 1;
+                index >= 0 &&
+                        remainingToRemove > 0;
+                index--
+        ) {
+            ItemStack stack =
+                    stacks.get(
+                            index
+                    );
+
+            if (
+                    stack.getDefinition() !=
+                            definition
+            ) {
+                continue;
+            }
+
+            int amountToRemove =
+                    Math.min(
+                            remainingToRemove,
+                            stack.getQuantity()
+                    );
+
+            stack.removeQuantity(
+                    amountToRemove
+            );
+
+            remainingToRemove -=
+                    amountToRemove;
+
+            /*
+             * Empty stacks should no longer occupy grid cells.
+             */
+            if (
+                    stack.getQuantity() ==
+                            0
+            ) {
+                stacks.remove(
+                        index
+                );
+            }
+        }
+
+        return true;
+    }
+
     public void clear() {
         stacks.clear();
     }

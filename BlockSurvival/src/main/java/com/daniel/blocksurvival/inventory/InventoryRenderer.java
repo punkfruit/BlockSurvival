@@ -1470,4 +1470,19 @@ public class InventoryRenderer {
 
         return null;
     }
+
+    public ItemDefinition getSelectedItem(
+            Inventory inventory
+    ) {
+        ItemStack selectedStack =
+                getStackAtSelectedCell(
+                        inventory
+                );
+
+        if (selectedStack == null) {
+            return null;
+        }
+
+        return selectedStack.getDefinition();
+    }
 }
