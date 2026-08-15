@@ -59,6 +59,52 @@ public final class Items {
                     )
             );
 
+    public static final ItemDefinition COAL =
+            register(
+                    new ItemDefinition(
+                            "coal",
+                            "Coal",
+                            1,
+                            1,
+                            8,
+                            false,
+
+
+                            new AtlasTile(
+                                    0,
+                                    2
+                            ),
+
+                            /*
+                             * Coal itself is not a placeable block.
+                             */
+                            null
+                    )
+            );
+
+    public static final ItemDefinition RAW_IRON =
+            register(
+                    new ItemDefinition(
+                            "raw_iron",
+                            "Raw Iron",
+                            1,
+                            1,
+                            8,
+                            false,
+
+                            /*
+                             * Temporary icon:
+                             * reuse the Iron Ore texture.
+                             */
+                            new AtlasTile(
+                                    1,
+                                    2
+                            ),
+
+                            null
+                    )
+            );
+
     static {
         for (BlockType blockType : BlockType.values()) {
             AtlasTile inventoryIcon =

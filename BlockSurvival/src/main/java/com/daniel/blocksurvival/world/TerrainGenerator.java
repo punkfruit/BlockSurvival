@@ -17,6 +17,8 @@ public class TerrainGenerator {
     private final ValueNoise3D shaftNoiseB;
     private final ValueNoise3D shaftPlacementNoise;
     private final ValueNoise3D entranceNoise;
+    private final ValueNoise3D coalOreNoise;
+    private final ValueNoise3D ironOreNoise;
 
     private static final float DESERT_FOREST_BORDER = 0.33f;
     private static final float FOREST_SNOW_BORDER = 0.66f;
@@ -58,6 +60,15 @@ public class TerrainGenerator {
                 new ValueNoise3D(seed + 7000);
         entranceNoise =
                 new ValueNoise3D(seed + 8000);
+        coalOreNoise =
+                new ValueNoise3D(
+                        seed + 9000
+                );
+
+        ironOreNoise =
+                new ValueNoise3D(
+                        seed + 10000
+                );
     }
 
     public void generateChunk(
@@ -234,6 +245,22 @@ public class TerrainGenerator {
             }
 
             /*
+             * Replace surviving underground stone with ore.
+             *
+             * This happens after cave carving so ores do not prevent
+             * caves from being generated.
+             */
+            if (blockType == BlockType.STONE) {
+                blockType =
+                        getUndergroundBlockType(
+                                worldX,
+                                y,
+                                worldZ,
+                                terrainHeight
+                        );
+            }
+
+            /*
              * Remove unsupported surface-layer blocks exposed by caves.
              */
             if (
@@ -270,6 +297,114 @@ public class TerrainGenerator {
 
 
 
+    private BlockType getUndergroundBlockType(
+            int worldX,
+            int worldY,
+            int worldZ,
+            int terrainHeight
+    ) {
+        int depthBelowSurface =
+                terrainHeight -
+                        worldY;
+
+        /*
+         * Iron is checked first because it is rarer.
+         *
+         * If both noise fields happen to qualify at the same
+         * coordinate, Iron wins.
+         */
+        if (
+                shouldPlaceIronOre(
+                        worldX,
+                        worldY,
+                        worldZ,
+                        depthBelowSurface
+                )
+        ) {
+            return BlockType.IRON_ORE;
+        }
+
+        if (
+                shouldPlaceCoalOre(
+                        worldX,
+                        worldY,
+                        worldZ,
+                        depthBelowSurface
+                )
+        ) {
+            return BlockType.COAL_ORE;
+        }
+
+        return BlockType.STONE;
+    }
+
+    private boolean shouldPlaceCoalOre(
+            int worldX,
+            int worldY,
+            int worldZ,
+            int depthBelowSurface
+    ) {
+        /*
+         * Keep coal out of the immediate dirt/surface layer.
+         */
+        if (depthBelowSurface < 4) {
+            return false;
+        }
+
+        float noiseValue =
+                coalOreNoise.sample(
+                        worldX *
+                                1.10f,
+                        worldY *
+                                1.10f,
+                        worldZ *
+                                1.10f
+                );
+
+        return noiseValue >
+                0.86f; //rarity. lower = more coal
+    }
+
+    private boolean shouldPlaceIronOre(
+            int worldX,
+            int worldY,
+            int worldZ,
+            int depthBelowSurface
+    ) {
+        /*
+         * Iron starts deeper than coal.
+         */
+        if (depthBelowSurface < 8) {
+            return false;
+        }
+
+        float noiseValue =
+                ironOreNoise.sample(
+                        worldX *
+                                1.35f,
+                        worldY *
+                                1.35f,
+                        worldZ *
+                                1.35f
+                );
+
+        /*
+         * Iron becomes slightly easier to find deeper underground.
+         */
+        float depthBonus =
+                Math.min(
+                        depthBelowSurface /
+                                100.0f,
+                        0.025f
+                );
+
+        float threshold =
+                0.90f -
+                        depthBonus;
+
+        return noiseValue >
+                threshold;
+    }
 
     private BlockType getTerrainBlockType(
             int y,

@@ -5,6 +5,8 @@ import com.daniel.blocksurvival.entity.EntityManager;
 import com.daniel.blocksurvival.entity.ItemEntity;
 import com.daniel.blocksurvival.graphics.*;
 import com.daniel.blocksurvival.inventory.*;
+import com.daniel.blocksurvival.loot.BlockDrops;
+import com.daniel.blocksurvival.loot.ItemDrop;
 import com.daniel.blocksurvival.world.*;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -34,7 +36,7 @@ public class Main {
     public final World world = new World(); //setting public temp
 
     private final SaveManager saveManager =
-            new SaveManager("World1");
+            new SaveManager("OreTest");
 
     private final TerrainGenerator terrainGenerator =
             new TerrainGenerator(WORLD_SEED);
@@ -387,6 +389,25 @@ public class Main {
                                                 selectedIndex +
                                                         1
                                         )
+                        );
+                    }
+
+                    if (
+                            key == GLFW_KEY_F6 &&
+                                    action == GLFW_PRESS
+                    ) {
+                        int remaining =
+                                playerInventory.collect(
+                                        Items.fromBlock(
+                                                BlockType.TORCH
+                                        ),
+                                        8
+                                );
+
+                        System.out.println(
+                                "Debug: gave " +
+                                        (8 - remaining) +
+                                        " torches."
                         );
                     }
 
@@ -1931,14 +1952,22 @@ vec3 litColor =
         );
 
         if (oldBlock != null) {
-            entityManager.spawn(
-                    new ItemEntity(
-                            blockX,
-                            blockY + 0.15f,
-                            blockZ,
+            for (
+                    ItemDrop drop :
+                    BlockDrops.getDrops(
                             oldBlock
                     )
-            );
+            ) {
+                entityManager.spawn(
+                        new ItemEntity(
+                                blockX,
+                                blockY + 0.15f,
+                                blockZ,
+                                drop.item(),
+                                drop.quantity()
+                        )
+                );
+            }
         }
 
 
