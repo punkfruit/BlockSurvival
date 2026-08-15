@@ -24,75 +24,7 @@ public class Hotbar {
             0;
 
     public Hotbar() {
-        /*
-         * Temporary assignments matching the old creative
-         * hotbar so existing controls continue to work.
-         *
-         * Later these will be assigned by the player through
-         * the inventory UI.
-         */
-        assignSlot(
-                0,
-                Items.fromBlock(
-                        BlockType.GRASS
-                )
-        );
 
-        assignSlot(
-                1,
-                Items.fromBlock(
-                        BlockType.DIRT
-                )
-        );
-
-        assignSlot(
-                2,
-                Items.fromBlock(
-                        BlockType.STONE
-                )
-        );
-
-        assignSlot(
-                3,
-                Items.fromBlock(
-                        BlockType.TORCH
-                )
-        );
-
-        assignSlot(
-                4,
-                Items.fromBlock(
-                        BlockType.WOOD
-                )
-        );
-
-        assignSlot(
-                5,
-                Items.fromBlock(
-                        BlockType.LEAVES
-                )
-        );
-
-        assignSlot(
-                6,
-                Items.fromBlock(
-                        BlockType.SNOW
-                )
-        );
-
-        assignSlot(
-                7,
-                Items.fromBlock(
-                        BlockType.GLOWSTONE
-                )
-        );
-
-        assignSlot(
-                8,
-                Items.fromBlock(
-                        BlockType.WATER
-                )
-        );
     }
 
     public void scroll(

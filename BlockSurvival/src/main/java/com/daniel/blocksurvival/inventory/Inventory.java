@@ -235,6 +235,22 @@ public class Inventory
             int y,
             boolean rotated
     ) {
+        return canPlace(
+                definition,
+                x,
+                y,
+                rotated,
+                null
+        );
+    }
+
+    private boolean canPlace(
+            ItemDefinition definition,
+            int x,
+            int y,
+            boolean rotated,
+            ItemStack ignoredStack
+    ) {
         int itemWidth =
                 definition.getPlacedWidth(
                         rotated
@@ -255,6 +271,13 @@ public class Inventory
         }
 
         for (ItemStack stack : stacks) {
+            /*
+             * Ignore the item we're currently moving.
+             */
+            if (stack == ignoredStack) {
+                continue;
+            }
+
             ItemDefinition existingDefinition =
                     stack.getDefinition();
 
@@ -288,6 +311,86 @@ public class Inventory
         }
 
         return true;
+    }
+
+    public boolean moveStack(
+            ItemStack stack,
+            int newX,
+            int newY,
+            boolean rotated
+    ) {
+        if (
+                stack == null ||
+                        !stacks.contains(stack)
+        ) {
+            return false;
+        }
+
+        if (
+                rotated &&
+                        !stack.getDefinition()
+                                .rotatable()
+        ) {
+            return false;
+        }
+
+        if (
+                !canPlace(
+                        stack.getDefinition(),
+                        newX,
+                        newY,
+                        rotated,
+                        stack
+                )
+        ) {
+            return false;
+        }
+
+        stack.place(
+                newX,
+                newY,
+                rotated
+        );
+
+        return true;
+    }
+
+    public ItemStack getStackAt(
+            int gridX,
+            int gridY
+    ) {
+        for (ItemStack stack : stacks) {
+            ItemDefinition definition =
+                    stack.getDefinition();
+
+            int itemWidth =
+                    definition.getPlacedWidth(
+                            stack.isRotated()
+                    );
+
+            int itemHeight =
+                    definition.getPlacedHeight(
+                            stack.isRotated()
+                    );
+
+            boolean inside =
+                    gridX >=
+                            stack.getGridX() &&
+                            gridX <
+                                    stack.getGridX() +
+                                            itemWidth &&
+                            gridY >=
+                                    stack.getGridY() &&
+                            gridY <
+                                    stack.getGridY() +
+                                            itemHeight;
+
+            if (inside) {
+                return stack;
+            }
+        }
+
+        return null;
     }
 
     public List<ItemStack> getStacks() {

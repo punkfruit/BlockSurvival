@@ -43,7 +43,7 @@ public class ItemEntity
     private static final float DESPAWN_SECONDS =
             300.0f;
 
-    private final BlockType blockType;
+    private final ItemDefinition itemDefinition;
     private int quantity;
 
     private float pickupRetryTimer;
@@ -76,7 +76,9 @@ public class ItemEntity
                 x,
                 y,
                 z,
-                blockType,
+                Items.fromBlock(
+                        blockType
+                ),
                 1
         );
     }
@@ -88,15 +90,48 @@ public class ItemEntity
             BlockType blockType,
             int quantity
     ) {
+        this(
+                x,
+                y,
+                z,
+                Items.fromBlock(
+                        blockType
+                ),
+                quantity
+        );
+    }
+
+    public ItemEntity(
+            float x,
+            float y,
+            float z,
+            ItemDefinition itemDefinition
+    ) {
+        this(
+                x,
+                y,
+                z,
+                itemDefinition,
+                1
+        );
+    }
+
+    public ItemEntity(
+            float x,
+            float y,
+            float z,
+            ItemDefinition itemDefinition,
+            int quantity
+    ) {
         super(
                 x,
                 y,
                 z
         );
 
-        if (blockType == null) {
+        if (itemDefinition == null) {
             throw new IllegalArgumentException(
-                    "An item entity requires a block type."
+                    "An item entity requires an item definition."
             );
         }
 
@@ -106,8 +141,8 @@ public class ItemEntity
             );
         }
 
-        this.blockType =
-                blockType;
+        this.itemDefinition =
+                itemDefinition;
 
         this.quantity =
                 quantity;
@@ -660,29 +695,14 @@ public class ItemEntity
             return;
         }
 
-        ItemDefinition definition =
-                Items.fromBlock(
-                        blockType
-                );
 
-        if (definition == null) {
-            System.err.println(
-                    "No item definition exists for " +
-                            blockType
-            );
-
-            pickupRetryTimer =
-                    1.0f;
-
-            return;
-        }
 
         int quantityBeforePickup =
                 quantity;
 
         int quantityRemaining =
                 itemCollector.collect(
-                        definition,
+                        itemDefinition,
                         quantity
                 );
 
@@ -696,7 +716,7 @@ public class ItemEntity
         if (quantityAccepted <= 0) {
             System.out.println(
                     "No inventory space for " +
-                            definition.displayName()
+                            itemDefinition.displayName()
             );
 
             pickupRetryTimer =
@@ -713,7 +733,7 @@ public class ItemEntity
 
         System.out.println(
                 "Picked up " +
-                        definition.displayName() +
+                        itemDefinition.displayName() +
                         " x" +
                         quantityAccepted
         );
@@ -727,7 +747,7 @@ public class ItemEntity
         }
 
         System.out.println(
-                definition.displayName() +
+                itemDefinition.displayName() +
                         " x" +
                         quantity +
                         " remains on the ground."
@@ -738,7 +758,11 @@ public class ItemEntity
     }
 
     public BlockType getBlockType() {
-        return blockType;
+        return itemDefinition.placedBlock();
+    }
+
+    public ItemDefinition getItemDefinition() {
+        return itemDefinition;
     }
 
     public float getRotation() {
@@ -786,8 +810,8 @@ public class ItemEntity
          * Only identical item types may share a stack.
          */
         if (
-                blockType !=
-                        other.blockType
+                itemDefinition !=
+                        other.itemDefinition
         ) {
             return false;
         }
@@ -804,17 +828,12 @@ public class ItemEntity
             return false;
         }
 
-        ItemDefinition definition =
-                Items.fromBlock(
-                        blockType
-                );
 
-        if (definition == null) {
-            return false;
-        }
+
+
 
         return quantity <
-                definition.maximumStackSize();
+                itemDefinition.maximumStackSize();
     }
 
     public int mergeFrom(
@@ -824,13 +843,10 @@ public class ItemEntity
             return 0;
         }
 
-        ItemDefinition definition =
-                Items.fromBlock(
-                        blockType
-                );
+
 
         int availableCapacity =
-                definition.maximumStackSize() -
+                itemDefinition.maximumStackSize() -
                         quantity;
 
         int amountTransferred =
@@ -865,6 +881,18 @@ public class ItemEntity
     ) {
         return position.distanceSquared(
                 other.position
+        );
+    }
+
+    public void setVelocity(
+            float x,
+            float y,
+            float z
+    ) {
+        velocity.set(
+                x,
+                y,
+                z
         );
     }
 }

@@ -206,36 +206,93 @@ public class Main {
                     ) {
                         switch (key) {
                             case GLFW_KEY_LEFT,
-                                 GLFW_KEY_A ->
+                                 GLFW_KEY_A -> {
+                                if (inventoryRenderer.isMovingItem()) {
+                                    inventoryRenderer.moveHeldItem(
+                                            -1,
+                                            0,
+                                            playerInventory
+                                    );
+                                }
+                                else {
                                     inventoryRenderer.moveSelection(
                                             -1,
                                             0,
                                             playerInventory
                                     );
+                                }
+                            }
 
                             case GLFW_KEY_RIGHT,
-                                 GLFW_KEY_D ->
+                                 GLFW_KEY_D -> {
+                                if (inventoryRenderer.isMovingItem()) {
+                                    inventoryRenderer.moveHeldItem(
+                                            1,
+                                            0,
+                                            playerInventory
+                                    );
+                                }
+                                else {
                                     inventoryRenderer.moveSelection(
                                             1,
                                             0,
                                             playerInventory
                                     );
+                                }
+                            }
 
                             case GLFW_KEY_UP,
-                                 GLFW_KEY_W ->
+                                 GLFW_KEY_W -> {
+                                if (inventoryRenderer.isMovingItem()) {
+                                    inventoryRenderer.moveHeldItem(
+                                            0,
+                                            -1,
+                                            playerInventory
+                                    );
+                                }
+                                else {
                                     inventoryRenderer.moveSelection(
                                             0,
                                             -1,
                                             playerInventory
                                     );
+                                }
+                            }
 
                             case GLFW_KEY_DOWN,
-                                 GLFW_KEY_S ->
+                                 GLFW_KEY_S -> {
+                                if (inventoryRenderer.isMovingItem()) {
+                                    inventoryRenderer.moveHeldItem(
+                                            0,
+                                            1,
+                                            playerInventory
+                                    );
+                                }
+                                else {
                                     inventoryRenderer.moveSelection(
                                             0,
                                             1,
                                             playerInventory
                                     );
+                                }
+                            }
+
+                            case GLFW_KEY_ENTER,
+                                 GLFW_KEY_SPACE ->
+                                    inventoryRenderer.toggleMoveSelectedItem(
+                                            playerInventory
+                                    );
+
+                            case GLFW_KEY_R ->
+                                    inventoryRenderer.rotateHeldItem(
+                                            playerInventory
+                                    );
+
+                            case GLFW_KEY_Q -> {
+                                if (!inventoryRenderer.isMovingItem()) {
+                                    dropSelectedInventoryItem();
+                                }
+                            }
                         }
                     }
 
@@ -307,7 +364,7 @@ public class Main {
                         }
 
 
-                    
+
 
                     if (
                             !inventoryRenderer.isVisible() &&
@@ -516,12 +573,22 @@ public class Main {
                 );
 
 
+        /*
         int remaining =
                 playerInventory.collect(
                         Items.MACHINE_CORE,
                         1
                 );
 
+
+
+        int remaining =
+                playerInventory.collect(
+                        Items.BASEBALL_BAT,
+                        1
+                );
+
+         */
 
 
 
@@ -2291,6 +2358,75 @@ vec3 litColor =
         return null;
     }
 
+    private void dropSelectedInventoryItem() {
+        ItemDefinition definition =
+                inventoryRenderer.getSelectedItem(
+                        playerInventory
+                );
+
+        if (definition == null) {
+            return;
+        }
+
+        /*
+         * Remove one first. If removal somehow fails,
+         * absolutely nothing gets spawned.
+         */
+        boolean removed =
+                playerInventory.remove(
+                        definition,
+                        1
+                );
+
+        if (!removed) {
+            return;
+        }
+
+        Vector3f forward =
+                new Vector3f(
+                        camera.getFront()
+                );
+
+        Vector3f dropPosition =
+                new Vector3f(
+                        camera.getPosition()
+                ).fma(
+                        0.85f,
+                        forward
+                );
+
+        /*
+         * Spawn slightly below eye level.
+         */
+        dropPosition.y -=
+                0.25f;
+
+        ItemEntity droppedItem =
+                new ItemEntity(
+                        dropPosition.x,
+                        dropPosition.y,
+                        dropPosition.z,
+                        definition,
+                        1
+                );
+
+        droppedItem.setVelocity(
+                forward.x * 3.0f,
+                forward.y * 3.0f +
+                        1.5f,
+                forward.z * 3.0f
+        );
+
+        entityManager.spawn(
+                droppedItem
+        );
+
+        System.out.println(
+                "Dropped " +
+                        definition.displayName()
+        );
+    }
+
     private void updateTargetedBlock() {
         Vector3f rayPosition =
                 new Vector3f(camera.getPosition())
@@ -2669,14 +2805,16 @@ vec3 litColor =
 
         saveManager.savePlayer(
                 playerData,
-                playerInventory
+                playerInventory,
+                hotbar
         );
     }
 
     private void loadPlayer() {
         PlayerSaveData playerData =
                 saveManager.loadPlayer(
-                        playerInventory
+                        playerInventory,
+                        hotbar
                 );
 
         if (playerData == null) {

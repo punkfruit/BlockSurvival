@@ -12,6 +12,7 @@ import com.daniel.blocksurvival.inventory.Inventory;
 import com.daniel.blocksurvival.inventory.ItemDefinition;
 import com.daniel.blocksurvival.inventory.ItemStack;
 import com.daniel.blocksurvival.inventory.Items;
+import com.daniel.blocksurvival.Hotbar;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,7 +55,7 @@ public class SaveManager {
     private static final int PLAYER_FILE_MAGIC =
             0x4253504C;
 
-    private static final int PLAYER_FILE_VERSION = 2;
+    private static final int PLAYER_FILE_VERSION = 3;
 
 
 
@@ -517,7 +518,8 @@ public class SaveManager {
 
     public void savePlayer(
             PlayerSaveData playerData,
-            Inventory inventory
+            Inventory inventory,
+            Hotbar hotbar
     ) {
         Path playerFile =
                 worldDirectory.resolve(
@@ -571,6 +573,11 @@ public class SaveManager {
                     inventory
             );
 
+            writeHotbar(
+                    output,
+                    hotbar
+            );
+
             System.out.println(
                     "Saved player."
             );
@@ -584,8 +591,47 @@ public class SaveManager {
         }
     }
 
+    private void writeHotbar(
+            DataOutputStream output,
+            Hotbar hotbar
+    ) throws IOException {
+        output.writeInt(
+                hotbar.getSlotCount()
+        );
+
+        for (
+                int slotIndex = 0;
+                slotIndex < hotbar.getSlotCount();
+                slotIndex++
+        ) {
+            ItemDefinition item =
+                    hotbar.getItem(
+                            slotIndex
+                    );
+
+            /*
+             * Write whether this slot is occupied first.
+             *
+             * That avoids needing a fake string such as "null".
+             */
+            boolean occupied =
+                    item != null;
+
+            output.writeBoolean(
+                    occupied
+            );
+
+            if (occupied) {
+                output.writeUTF(
+                        item.id()
+                );
+            }
+        }
+    }
+
     public PlayerSaveData loadPlayer(
-            Inventory inventory
+            Inventory inventory,
+            Hotbar hotbar
     ) {
         Path playerFile =
                 worldDirectory.resolve(
@@ -658,6 +704,18 @@ public class SaveManager {
                  * Version 1 had no saved inventory.
                  */
                 inventory.clear();
+            }
+
+            if (version >= 3) {
+                readHotbar(
+                        input,
+                        hotbar
+                );
+            }
+            else {
+                clearHotbar(
+                        hotbar
+                );
             }
 
             System.out.println(
@@ -864,6 +922,87 @@ public class SaveManager {
                         " stack(s)."
         );
     }
+
+    private void readHotbar(
+            DataInputStream input,
+            Hotbar hotbar
+    ) throws IOException {
+        int savedSlotCount =
+                input.readInt();
+
+        if (
+                savedSlotCount !=
+                        hotbar.getSlotCount()
+        ) {
+            throw new IOException(
+                    "Saved hotbar has " +
+                            savedSlotCount +
+                            " slots, but current hotbar has " +
+                            hotbar.getSlotCount() +
+                            "."
+            );
+        }
+
+        /*
+         * Clear everything first so loading completely replaces
+         * the current assignments.
+         */
+        clearHotbar(
+                hotbar
+        );
+
+        for (
+                int slotIndex = 0;
+                slotIndex < savedSlotCount;
+                slotIndex++
+        ) {
+            boolean occupied =
+                    input.readBoolean();
+
+            if (!occupied) {
+                continue;
+            }
+
+            String itemId =
+                    input.readUTF();
+
+            ItemDefinition item =
+                    Items.getById(
+                            itemId
+                    );
+
+            if (item == null) {
+                throw new IOException(
+                        "Unknown hotbar item ID: " +
+                                itemId
+                );
+            }
+
+            hotbar.assignSlot(
+                    slotIndex,
+                    item
+            );
+        }
+
+        System.out.println(
+                "Loaded hotbar assignments."
+        );
+    }
+
+    private void clearHotbar(
+            Hotbar hotbar
+    ) {
+        for (
+                int slotIndex = 0;
+                slotIndex < hotbar.getSlotCount();
+                slotIndex++
+        ) {
+            hotbar.clearSlot(
+                    slotIndex
+            );
+        }
+    }
+
     private record SavedInventoryStack(
             ItemDefinition definition,
             int quantity,

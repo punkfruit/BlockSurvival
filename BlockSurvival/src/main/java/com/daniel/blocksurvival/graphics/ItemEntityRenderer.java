@@ -3,12 +3,15 @@ package com.daniel.blocksurvival.graphics;
 import com.daniel.blocksurvival.Camera;
 import com.daniel.blocksurvival.entity.Entity;
 import com.daniel.blocksurvival.entity.ItemEntity;
+import com.daniel.blocksurvival.inventory.ItemDefinition;
+import com.daniel.blocksurvival.world.AtlasTile;
 import com.daniel.blocksurvival.world.BlockType;
 import com.daniel.blocksurvival.world.World;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -22,11 +25,15 @@ public class ItemEntityRenderer {
 
     private final Texture atlasTexture;
 
+    private Mesh itemCardMesh;
+
     private final Shader shader;
 
     private final BlockMeshBuilder meshBuilder =
             new BlockMeshBuilder();
 
+    private final Map<ItemDefinition, Mesh> itemMeshCache =
+            new HashMap<>();
     /*
      * One reusable GPU mesh per block type.
      *
@@ -293,14 +300,103 @@ public class ItemEntityRenderer {
         shader.unbind();
     }
 
+    private Mesh getOrCreateItemCardMesh(
+            ItemDefinition definition
+    ) {
+        if (itemCardMesh != null) {
+            Mesh existingMesh =
+                    itemMeshCache.get(
+                            definition
+                    );
+
+            if (existingMesh != null) {
+                return existingMesh;
+            }
+
+
+        }
+
+        AtlasTile tile =
+                definition.inventoryIcon();
+
+        float tileSize =
+                BlockType.getTileSize();
+
+        float minimumU =
+                tile.column() *
+                        tileSize;
+
+        float minimumV =
+                tile.row() *
+                        tileSize;
+
+        float maximumU =
+                minimumU +
+                        tileSize;
+
+        float maximumV =
+                minimumV +
+                        tileSize;
+
+        float[] vertices = {
+                // x      y      z       u         v       AO material bend sky block
+                -0.5f, -0.5f, 0.0f, minimumU, maximumV, 1f, 0f, 0f, 1f, 0f,
+                0.5f, -0.5f, 0.0f, maximumU, maximumV, 1f, 0f, 0f, 1f, 0f,
+                0.5f,  0.5f, 0.0f, maximumU, minimumV, 1f, 0f, 0f, 1f, 0f,
+                -0.5f,  0.5f, 0.0f, minimumU, minimumV, 1f, 0f, 0f, 1f, 0f
+        };
+
+        int[] indices = {
+                0, 1, 2,
+                2, 3, 0,
+
+                /*
+                 * Back face too.
+                 */
+                2, 1, 0,
+                0, 3, 2
+        };
+
+        Mesh newMesh =
+                new Mesh(
+                        vertices,
+                        indices
+                );
+
+        itemMeshCache.put(
+                definition,
+                newMesh
+        );
+
+        return newMesh;
+
+
+    }
+
     private void renderItem(
             ItemEntity item,
             World world
     ) {
-        Mesh mesh =
-                getOrCreateMesh(
-                        item.getBlockType()
-                );
+        ItemDefinition definition =
+                item.getItemDefinition();
+
+        BlockType blockType =
+                definition.placedBlock();
+
+        Mesh mesh;
+
+        if (blockType != null) {
+            mesh =
+                    getOrCreateMesh(
+                            blockType
+                    );
+        }
+        else {
+            mesh =
+                    getOrCreateItemCardMesh(
+                            definition
+                    );
+        }
 
         if (mesh == null) {
             return;
@@ -330,20 +426,27 @@ public class ItemEntityRenderer {
                         0.04f
                         : 0.0f;
 
-        float itemScale =
-                switch (
-                        item.getBlockType()
-                                .getModel()
-                        ) {
-                    case CROSS ->
-                            0.40f;
+        float itemScale;
 
-                    case TORCH ->
-                            0.60f;
+        if (blockType == null) {
+            itemScale =
+                    0.40f;
+        }
+        else {
+            itemScale =
+                    switch (
+                            blockType.getModel()
+                            ) {
+                        case CROSS ->
+                                0.40f;
 
-                    case CUBE ->
-                            ITEM_SCALE;
-                };
+                        case TORCH ->
+                                0.60f;
+
+                        case CUBE ->
+                                ITEM_SCALE;
+                    };
+        }
 
         Matrix4f modelMatrix =
                 new Matrix4f()
@@ -413,13 +516,14 @@ public class ItemEntityRenderer {
          * Emissive items should illuminate themselves even if
          * the surrounding sampled block light is stale or dark.
          */
-        blockLight =
-                Math.max(
-                        blockLight,
-                        item.getBlockType()
-                                .getEmittedLight() /
-                                15.0f
-                );
+        if (blockType != null) {
+            blockLight =
+                    Math.max(
+                            blockLight,
+                            blockType.getEmittedLight() /
+                                    15.0f
+                    );
+        }
 
         shader.setFloat(
                 "entitySkyLight",
@@ -476,6 +580,15 @@ public class ItemEntityRenderer {
         for (Mesh mesh : meshCache.values()) {
             mesh.destroy();
         }
+
+        for (
+                Mesh mesh :
+                itemMeshCache.values()
+        ) {
+            mesh.destroy();
+        }
+
+        itemMeshCache.clear();
 
         meshCache.clear();
 

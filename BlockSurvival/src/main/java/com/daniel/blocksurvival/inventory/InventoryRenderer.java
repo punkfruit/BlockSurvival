@@ -36,6 +36,11 @@ public class InventoryRenderer {
     private int selectedGridY =
             0;
 
+    private ItemStack movingStack;
+
+    public boolean isMovingItem(){
+        return movingStack != null;
+    }
     /*
      * One rectangle:
      *
@@ -853,6 +858,21 @@ public class InventoryRenderer {
                                 0.055f
                 );
 
+        float selectionRed =
+                isMovingItem()
+                        ? 0.30f
+                        : 0.96f;
+
+        float selectionGreen =
+                isMovingItem()
+                        ? 0.90f
+                        : 0.78f;
+
+        float selectionBlue =
+                isMovingItem()
+                        ? 1.0f
+                        : 0.20f;
+
         /*
          * Top.
          */
@@ -861,9 +881,9 @@ public class InventoryRenderer {
                 selectedY,
                 selectedWidth,
                 borderThickness,
-                0.96f,
-                0.78f,
-                0.20f,
+                selectionRed,
+                selectionGreen,
+                selectionBlue,
                 1.0f
         );
 
@@ -877,9 +897,9 @@ public class InventoryRenderer {
                         borderThickness,
                 selectedWidth,
                 borderThickness,
-                0.96f,
-                0.78f,
-                0.20f,
+                selectionRed,
+                selectionGreen,
+                selectionBlue,
                 1.0f
         );
 
@@ -891,9 +911,9 @@ public class InventoryRenderer {
                 selectedY,
                 borderThickness,
                 selectedHeight,
-                0.96f,
-                0.78f,
-                0.20f,
+                selectionRed,
+                selectionGreen,
+                selectionBlue,
                 1.0f
         );
 
@@ -907,9 +927,9 @@ public class InventoryRenderer {
                 selectedY,
                 borderThickness,
                 selectedHeight,
-                0.96f,
-                0.78f,
-                0.20f,
+                selectionRed,
+                selectionGreen,
+                selectionBlue,
                 1.0f
         );
 
@@ -1323,6 +1343,98 @@ public class InventoryRenderer {
 
         glBindVertexArray(
                 0
+        );
+    }
+
+    public void toggleMoveSelectedItem(
+            Inventory inventory
+    ){
+        //enter while already moving: finish the move
+        if(movingStack != null){
+            movingStack =
+                    null;
+
+            return;
+        }
+
+        ItemStack selectedStack =
+                inventory.getStackAt(
+                        selectedGridX,
+                        selectedGridY
+                );
+
+        if(selectedStack == null){
+            return;
+        }
+
+        movingStack = selectedStack;
+
+        //snap cursor to item anchor
+        selectedGridX =
+                selectedStack.getGridX();
+
+        selectedGridY =
+                selectedStack.getGridY();
+    }
+
+    public void moveHeldItem(
+            int movementX,
+            int movementY,
+            Inventory inventory
+    ) {
+        if (movingStack == null) {
+            return;
+        }
+
+        int newX =
+                movingStack.getGridX() +
+                        movementX;
+
+        int newY =
+                movingStack.getGridY() +
+                        movementY;
+
+        boolean moved =
+                inventory.moveStack(
+                        movingStack,
+                        newX,
+                        newY,
+                        movingStack.isRotated()
+                );
+
+        if (!moved) {
+            return;
+        }
+
+        selectedGridX =
+                movingStack.getGridX();
+
+        selectedGridY =
+                movingStack.getGridY();
+    }
+
+    public void rotateHeldItem(
+            Inventory inventory
+    ) {
+        if (movingStack == null) {
+            return;
+        }
+
+        ItemDefinition definition =
+                movingStack.getDefinition();
+
+        if (!definition.rotatable()) {
+            return;
+        }
+
+        boolean newRotation =
+                !movingStack.isRotated();
+
+        inventory.moveStack(
+                movingStack,
+                movingStack.getGridX(),
+                movingStack.getGridY(),
+                newRotation
         );
     }
 

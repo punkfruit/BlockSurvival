@@ -42,6 +42,22 @@ public final class Items {
                             null
                     )
             );
+    public static final ItemDefinition BASEBALL_BAT =
+            register(
+                    new ItemDefinition(
+                            "baseball_bat",
+                            "Baseball Bat",
+                            1,
+                            2,
+                            1,
+                            true,
+                            new AtlasTile(
+                                    0,
+                                    4
+                            ),
+                            null
+                    )
+            );
 
     static {
         for (BlockType blockType : BlockType.values()) {
