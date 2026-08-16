@@ -35,6 +35,14 @@ public final class BlockDrops {
                             )
                     );
 
+            case COPPER_ORE ->
+                    List.of(
+                            new ItemDrop(
+                                    Items.RAW_COPPER,
+                                    1
+                            )
+                    );
+
             /*
              * Default behavior:
              *

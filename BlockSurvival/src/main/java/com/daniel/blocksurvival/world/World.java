@@ -1,10 +1,16 @@
 package com.daniel.blocksurvival.world;
 
+import com.daniel.blocksurvival.machine.Machine;
+import com.daniel.blocksurvival.machine.MachineManager;
+
 public class World {
 
 
     private final ChunkManager chunkManager =
             new ChunkManager();
+
+    private final MachineManager machineManager =
+            new MachineManager();
 
     public void setBlock(
             int worldX,
@@ -361,6 +367,38 @@ public class World {
 
         return block == null ||
                 !block.isOpaque();
+    }
+
+    public Machine getMachineAt(
+            int worldX,
+            int worldY,
+            int worldZ
+    ) {
+        return machineManager.getMachineAt(
+                worldX,
+                worldY,
+                worldZ
+        );
+    }
+
+    public boolean registerMachine(
+            Machine machine
+    ) {
+        return machineManager.register(
+                machine
+        );
+    }
+
+    public void removeMachine(
+            Machine machine
+    ) {
+        machineManager.remove(
+                machine
+        );
+    }
+
+    public Iterable<Machine> getMachines() {
+        return machineManager.getMachines();
     }
 
     public BlockDirection getBlockDirection(

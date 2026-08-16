@@ -7,6 +7,8 @@ import com.daniel.blocksurvival.graphics.*;
 import com.daniel.blocksurvival.inventory.*;
 import com.daniel.blocksurvival.loot.BlockDrops;
 import com.daniel.blocksurvival.loot.ItemDrop;
+import com.daniel.blocksurvival.machine.Machine;
+import com.daniel.blocksurvival.machine.PrimitiveFurnace;
 import com.daniel.blocksurvival.world.*;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -411,6 +413,21 @@ public class Main {
                         );
                     }
 
+                    if (
+                            key == GLFW_KEY_F7 &&
+                                    action == GLFW_PRESS &&
+                                    !inventoryRenderer.isVisible()
+                    ) {
+                        placeTestFurnace();
+                    }
+
+                    if (
+                            key == GLFW_KEY_F8 &&
+                                    action == GLFW_PRESS
+                    ) {
+                        inspectTargetedMachine();
+                    }
+
 
                 }
         );
@@ -614,6 +631,42 @@ public class Main {
 
 
 
+    }
+
+    private void inspectTargetedMachine() {
+        if (currentRaycast == null) {
+            return;
+        }
+
+        Machine machine =
+                world.getMachineAt(
+                        currentRaycast.hitX(),
+                        currentRaycast.hitY(),
+                        currentRaycast.hitZ()
+                );
+
+        if (machine == null) {
+            System.out.println(
+                    "No machine here."
+            );
+
+            return;
+        }
+
+        BlockPosition anchor =
+                machine.getAnchor();
+
+        System.out.println(
+                "Machine: " +
+                        machine.getClass()
+                                .getSimpleName() +
+                        " | Anchor: " +
+                        anchor.x() +
+                        ", " +
+                        anchor.y() +
+                        ", " +
+                        anchor.z()
+        );
     }
 
 
@@ -2279,6 +2332,135 @@ vec3 litColor =
                         placementZ
                 )
         );
+    }
+
+    private void placeTestFurnace() {
+        if (currentRaycast == null) {
+            return;
+        }
+
+        int anchorX =
+                currentRaycast.placementX();
+
+        int anchorY =
+                currentRaycast.placementY();
+
+        int anchorZ =
+                currentRaycast.placementZ();
+
+        PrimitiveFurnace furnace =
+                new PrimitiveFurnace(
+                        new BlockPosition(
+                                anchorX,
+                                anchorY,
+                                anchorZ
+                        )
+                );
+
+        /*
+         * Every machine cell must be empty.
+         */
+        for (
+                BlockPosition position :
+                furnace.getOccupiedBlocks()
+        ) {
+            if (
+                    world.getBlock(
+                            position.x(),
+                            position.y(),
+                            position.z()
+                    ) != null
+            ) {
+                System.out.println(
+                        "Not enough room for furnace."
+                );
+
+                return;
+            }
+
+            if (
+                    camera.overlapsBlock(
+                            position.x(),
+                            position.y(),
+                            position.z()
+                    )
+            ) {
+                System.out.println(
+                        "Furnace would overlap player."
+                );
+
+                return;
+            }
+
+            if (
+                    world.getMachineAt(
+                            position.x(),
+                            position.y(),
+                            position.z()
+                    ) != null
+            ) {
+                System.out.println(
+                        "Another machine already occupies this space."
+                );
+
+                return;
+            }
+        }
+
+        if (
+                !world.registerMachine(
+                        furnace
+                )
+        ) {
+            System.out.println(
+                    "Could not register furnace."
+            );
+
+            return;
+        }
+
+        /*
+         * TEMP ART.
+         *
+         * Four stone blocks prove the footprint works.
+         *
+         * We'll replace these with your machine textures next.
+         */
+        for (
+                BlockPosition position :
+                furnace.getOccupiedBlocks()
+        ) {
+            world.setBlock(
+                    position.x(),
+                    position.y(),
+                    position.z(),
+                    BlockType.STONE
+            );
+
+            rebuildEditedChunkImmediately(
+                    position.x(),
+                    position.y(),
+                    position.z()
+            );
+
+            rebuildBoundaryNeighbors(
+                    position.x(),
+                    position.y(),
+                    position.z()
+            );
+        }
+
+        System.out.println(
+                "Placed Primitive Furnace at anchor: " +
+                        anchorX +
+                        ", " +
+                        anchorY +
+                        ", " +
+                        anchorZ
+        );
+
+        currentRaycast =
+                calculateRaycast();
     }
 
     private RaycastResult calculateRaycast() {

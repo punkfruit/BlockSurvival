@@ -35,6 +35,14 @@ public enum BlockType {
             ),
             BlockModel.CUBE,
             true
+    ),
+    COPPER_ORE(
+            new AtlasTile(
+                    7,
+                    1
+            ),
+            BlockModel.CUBE,
+            true
     );
 
     private final AtlasTile topTexture;

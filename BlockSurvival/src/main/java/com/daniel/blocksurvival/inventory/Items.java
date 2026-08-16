@@ -105,6 +105,23 @@ public final class Items {
                     )
             );
 
+    public static final ItemDefinition RAW_COPPER =
+            register(
+                    new ItemDefinition(
+                            "raw_copper",
+                            "Raw Copper",
+                            1,
+                            1,
+                            8,
+                            false,
+                            new AtlasTile(
+                                    2,
+                                    2
+                            ),
+                            null
+                    )
+            );
+
     static {
         for (BlockType blockType : BlockType.values()) {
             AtlasTile inventoryIcon =

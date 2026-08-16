@@ -19,6 +19,7 @@ public class TerrainGenerator {
     private final ValueNoise3D entranceNoise;
     private final ValueNoise3D coalOreNoise;
     private final ValueNoise3D ironOreNoise;
+    private final ValueNoise3D copperOreNoise;
 
     private static final float DESERT_FOREST_BORDER = 0.33f;
     private static final float FOREST_SNOW_BORDER = 0.66f;
@@ -68,6 +69,10 @@ public class TerrainGenerator {
         ironOreNoise =
                 new ValueNoise3D(
                         seed + 10000
+                );
+        copperOreNoise =
+                new ValueNoise3D(
+                        seed + 11000
                 );
     }
 
@@ -325,6 +330,17 @@ public class TerrainGenerator {
         }
 
         if (
+                shouldPlaceCopperOre(
+                        worldX,
+                        worldY,
+                        worldZ,
+                        depthBelowSurface
+                )
+        ) {
+            return BlockType.COPPER_ORE;
+        }
+
+        if (
                 shouldPlaceCoalOre(
                         worldX,
                         worldY,
@@ -404,6 +420,69 @@ public class TerrainGenerator {
 
         return noiseValue >
                 threshold;
+    }
+
+    private boolean shouldPlaceCopperOre(
+            int worldX,
+            int worldY,
+            int worldZ,
+            int depthBelowSurface
+    ) {
+        /*
+         * Copper shouldn't appear directly beneath
+         * the surface.
+         */
+        if (depthBelowSurface < 5) {
+            return false;
+        }
+
+        /*
+         * Copper becomes much less common very deep
+         * underground.
+         */
+        if (depthBelowSurface > 35) {
+            return false;
+        }
+
+        int regionX =
+                Math.floorDiv(
+                        worldX,
+                        16
+                );
+
+        int regionZ =
+                Math.floorDiv(
+                        worldZ,
+                        16
+                );
+
+        boolean stretchAlongX =
+                (
+                        regionX +
+                                regionZ
+                ) % 2 == 0;
+
+        float noiseValue;
+
+        if (stretchAlongX) {
+            noiseValue =
+                    copperOreNoise.sample(
+                            worldX * 0.45f,
+                            worldY * 1.40f,
+                            worldZ * 1.40f
+                    );
+        }
+        else {
+            noiseValue =
+                    copperOreNoise.sample(
+                            worldX * 1.40f,
+                            worldY * 1.40f,
+                            worldZ * 0.45f
+                    );
+        }
+
+        return noiseValue >
+                0.87f;
     }
 
     private BlockType getTerrainBlockType(
