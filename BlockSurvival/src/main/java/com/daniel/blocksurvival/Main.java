@@ -2818,7 +2818,7 @@ vec3 litColor =
                 yaw >= 315.0f ||
                         yaw < 45.0f
         ) {
-            return BlockDirection.EAST;
+            return BlockDirection.WEST;
         }
 
         if (yaw < 135.0f) {
@@ -2826,7 +2826,7 @@ vec3 litColor =
         }
 
         if (yaw < 225.0f) {
-            return BlockDirection.WEST;
+            return BlockDirection.EAST;
         }
 
         return BlockDirection.NORTH;

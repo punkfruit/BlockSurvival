@@ -677,7 +677,13 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y - 0.5f, z + 0.5f,
                 x + 0.5f, y - 0.5f, z + 0.5f,
                 x + 0.5f, y + topOffset, z + 0.5f,
-                type.getTextureForFace(BlockFace.NORTH),
+                world.getTextureForBlockFace(
+                        x,
+                        y,
+                        z,
+                        type,
+                        BlockFace.NORTH
+                ),
                 ao,
                 material,
                 0.0f,
@@ -736,7 +742,10 @@ public class ChunkMeshBuilder {
                 x + 0.5f, y - 0.5f, z - 0.5f,
                 x - 0.5f, y - 0.5f, z - 0.5f,
                 x - 0.5f, y + topOffset, z - 0.5f,
-                type.getTextureForFace(BlockFace.SOUTH),
+                world.getTextureForBlockFace(
+                        x, y, z,
+                        type,
+                        BlockFace.SOUTH),
                 ao,
                 material,
                 0.0f,
@@ -794,7 +803,11 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y - 0.5f, z - 0.5f,
                 x - 0.5f, y - 0.5f, z + 0.5f,
                 x - 0.5f, y + topOffset, z + 0.5f,
-                type.getTextureForFace(BlockFace.WEST),
+                world.getTextureForBlockFace(
+                        x, y, z,
+                        type,
+                        BlockFace.WEST
+                ),
                 ao,
                 material,
                 0.0f,
@@ -852,7 +865,11 @@ public class ChunkMeshBuilder {
                 x + 0.5f, y - 0.5f, z + 0.5f,
                 x + 0.5f, y - 0.5f, z - 0.5f,
                 x + 0.5f, y + topOffset, z - 0.5f,
-                type.getTextureForFace(BlockFace.EAST),
+                world.getTextureForBlockFace(
+                        x, y, z,
+                        type,
+                        BlockFace.EAST
+                ),
                 ao,
                 material,
                 0.0f,
@@ -912,7 +929,11 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y + topOffset, z + 0.5f,
                 x + 0.5f, y + topOffset, z + 0.5f,
                 x + 0.5f, y + topOffset, z - 0.5f,
-                type.getTextureForFace(BlockFace.TOP),
+                world.getTextureForBlockFace(
+                        x, y, z,
+                        type,
+                        BlockFace.TOP
+                ),
                 ao,
                 material,
                 0.0f,
@@ -969,7 +990,11 @@ public class ChunkMeshBuilder {
                 x - 0.5f, y - 0.5f, z - 0.5f,
                 x + 0.5f, y - 0.5f, z - 0.5f,
                 x + 0.5f, y - 0.5f, z + 0.5f,
-                type.getTextureForFace(BlockFace.BOTTOM),
+                world.getTextureForBlockFace(
+                        x, y, z,
+                        type,
+                        BlockFace.BOTTOM
+                ),
                 ao,
                 material,
                 0.0f,

@@ -422,6 +422,41 @@ public class World {
         }
     }
 
+    public AtlasTile getTextureForBlockFace(
+            int worldX,
+            int worldY,
+            int worldZ,
+            BlockType blockType,
+            BlockFace face
+    ) {
+        Machine machine =
+                getMachineAt(
+                        worldX,
+                        worldY,
+                        worldZ
+                );
+
+        if (machine != null) {
+            AtlasTile machineTexture =
+                    machine.getTextureForFace(
+                            new BlockPosition(
+                                    worldX,
+                                    worldY,
+                                    worldZ
+                            ),
+                            face
+                    );
+
+            if (machineTexture != null) {
+                return machineTexture;
+            }
+        }
+
+        return blockType.getTextureForFace(
+                face
+        );
+    }
+
     public BlockDirection getBlockDirection(
             int worldX,
             int worldY,
