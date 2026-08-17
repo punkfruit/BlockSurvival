@@ -12,7 +12,7 @@ public class Sky {
      * 1.00 = midnight again
      */
     private float worldTime =
-            0.25f;
+            0.50f;
 
     /*
      * Keep this short while testing.
@@ -21,7 +21,7 @@ public class Sky {
      * a twenty-minute full day.
      */
     private float dayLengthSeconds =
-            20.0f;
+            1200.0f;
 
     private static final Vector3f MIDNIGHT_COLOR =
             new Vector3f(

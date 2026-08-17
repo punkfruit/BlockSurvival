@@ -1,6 +1,8 @@
 package com.daniel.blocksurvival.machine;
 
+import com.daniel.blocksurvival.world.BlockDirection;
 import com.daniel.blocksurvival.world.BlockPosition;
+import java.util.ArrayList;
 
 import java.util.List;
 
@@ -8,52 +10,122 @@ public class PrimitiveFurnace
         extends Machine {
 
     public PrimitiveFurnace(
-            BlockPosition anchor
+            BlockPosition anchor,
+            BlockDirection facing
     ) {
         super(
-                anchor
+                anchor,
+                facing
         );
+    }
+    @Override
+    public String getTypeId() {
+        return "primitive_furnace";
     }
 
     @Override
     public List<BlockPosition> getOccupiedBlocks() {
+        List<BlockPosition> blocks =
+                new ArrayList<>();
+
+        /*
+         * 2 wide
+         * 2 deep
+         * 2 tall
+         */
+        for (
+                int localY = 0;
+                localY < 2;
+                localY++
+        ) {
+            for (
+                    int localZ = 0;
+                    localZ < 2;
+                    localZ++
+            ) {
+                for (
+                        int localX = 0;
+                        localX < 2;
+                        localX++
+                ) {
+                    blocks.add(
+                            localToWorld(
+                                    localX,
+                                    localY,
+                                    localZ
+                            )
+                    );
+                }
+            }
+        }
+
+        return blocks;
+    }
+
+    public BlockPosition localToWorld(
+            int localX,
+            int localY,
+            int localZ
+    ) {
         BlockPosition anchor =
                 getAnchor();
 
-        /*
-         * First prototype:
-         *
-         * 2 x 2 horizontal footprint.
-         *
-         * A B
-         * C D
-         *
-         * Anchor = A
-         */
-        return List.of(
-                new BlockPosition(
-                        anchor.x(),
-                        anchor.y(),
-                        anchor.z()
-                ),
+        int worldX;
+        int worldZ;
 
-                new BlockPosition(
-                        anchor.x() + 1,
-                        anchor.y(),
-                        anchor.z()
-                ),
+        switch (getFacing()) {
+            case NORTH -> {
+                worldX =
+                        anchor.x() +
+                                localX;
 
-                new BlockPosition(
-                        anchor.x(),
-                        anchor.y(),
-                        anchor.z() + 1
-                ),
+                worldZ =
+                        anchor.z() +
+                                localZ;
+            }
 
-                new BlockPosition(
-                        anchor.x() + 1,
-                        anchor.y(),
-                        anchor.z() + 1
-                )
+            case SOUTH -> {
+                worldX =
+                        anchor.x() -
+                                localX;
+
+                worldZ =
+                        anchor.z() -
+                                localZ;
+            }
+
+            case EAST -> {
+                worldX =
+                        anchor.x() +
+                                localZ;
+
+                worldZ =
+                        anchor.z() -
+                                localX;
+            }
+
+            case WEST -> {
+                worldX =
+                        anchor.x() -
+                                localZ;
+
+                worldZ =
+                        anchor.z() +
+                                localX;
+            }
+
+            default ->
+                    throw new IllegalStateException(
+                            "Unsupported machine direction: " +
+                                    getFacing()
+                    );
+        }
+
+        return new BlockPosition(
+                worldX,
+                anchor.y() +
+                        localY,
+                worldZ
         );
     }
 }

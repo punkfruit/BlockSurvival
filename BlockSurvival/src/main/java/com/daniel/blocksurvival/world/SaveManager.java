@@ -13,6 +13,8 @@ import com.daniel.blocksurvival.inventory.ItemDefinition;
 import com.daniel.blocksurvival.inventory.ItemStack;
 import com.daniel.blocksurvival.inventory.Items;
 import com.daniel.blocksurvival.Hotbar;
+import com.daniel.blocksurvival.machine.Machine;
+import com.daniel.blocksurvival.machine.PrimitiveFurnace;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,6 +53,16 @@ public class SaveManager {
 
     private final Path chunksDirectory;
     private final Path worldDirectory;
+
+    private static final int MACHINE_FILE_MAGIC =
+            0x42534D43;
+
+    /*
+     * B S M C
+     *
+     * Block Survival MaChines
+     */
+    private static final int MACHINE_FILE_VERSION = 2;
 
     private static final int PLAYER_FILE_MAGIC =
             0x4253504C;
@@ -1001,6 +1013,273 @@ public class SaveManager {
                     slotIndex
             );
         }
+    }
+
+    public void saveMachines(
+            Iterable<Machine> machines
+    ) {
+        Path machineFile =
+                worldDirectory.resolve(
+                        "machines.dat"
+                );
+
+        /*
+         * Convert to a list first because the file needs
+         * to know how many machine records follow.
+         */
+        List<Machine> machineList =
+                new ArrayList<>();
+
+        for (Machine machine : machines) {
+            machineList.add(
+                    machine
+            );
+        }
+
+        try (
+                DataOutputStream output =
+                        new DataOutputStream(
+                                new BufferedOutputStream(
+                                        Files.newOutputStream(
+                                                machineFile
+                                        )
+                                )
+                        )
+        ) {
+            output.writeInt(
+                    MACHINE_FILE_MAGIC
+            );
+
+            output.writeInt(
+                    MACHINE_FILE_VERSION
+            );
+
+            output.writeInt(
+                    machineList.size()
+            );
+
+            for (
+                    Machine machine :
+                    machineList
+            ) {
+                output.writeUTF(
+                        machine.getTypeId()
+                );
+
+                BlockPosition anchor =
+                        machine.getAnchor();
+
+                output.writeInt(
+                        anchor.x()
+                );
+
+                output.writeInt(
+                        anchor.y()
+                );
+
+                output.writeInt(
+                        anchor.z()
+                );
+
+                output.writeInt(
+                        machine.getFacing()
+                                .ordinal()
+                );
+            }
+
+            System.out.println(
+                    "Saved " +
+                            machineList.size() +
+                            " machine(s)."
+            );
+        }
+        catch (IOException exception) {
+            System.err.println(
+                    "Failed to save machines."
+            );
+
+            exception.printStackTrace();
+        }
+    }
+
+    public List<Machine> loadMachines() {
+        Path machineFile =
+                worldDirectory.resolve(
+                        "machines.dat"
+                );
+
+        if (!Files.exists(machineFile)) {
+            return List.of();
+        }
+
+        try (
+                DataInputStream input =
+                        new DataInputStream(
+                                new BufferedInputStream(
+                                        Files.newInputStream(
+                                                machineFile
+                                        )
+                                )
+                        )
+        ) {
+            int magic =
+                    input.readInt();
+
+            if (magic != MACHINE_FILE_MAGIC) {
+                throw new IOException(
+                        "File is not a valid Block Survival machine save."
+                );
+            }
+
+            int version =
+                    input.readInt();
+
+            if (
+                    version < 1 ||
+                            version >
+                                    MACHINE_FILE_VERSION
+            ) {
+                throw new IOException(
+                        "Unsupported machine save version: " +
+                                version
+                );
+            }
+
+            int machineCount =
+                    input.readInt();
+
+            if (
+                    machineCount < 0 ||
+                            machineCount > 1_000_000
+            ) {
+                throw new IOException(
+                        "Invalid machine count: " +
+                                machineCount
+                );
+            }
+
+            List<Machine> machines =
+                    new ArrayList<>();
+
+            for (
+                    int index = 0;
+                    index < machineCount;
+                    index++
+            ) {
+                String typeId =
+                        input.readUTF();
+
+                int anchorX =
+                        input.readInt();
+
+                int anchorY =
+                        input.readInt();
+
+                int anchorZ =
+                        input.readInt();
+
+                BlockDirection facing;
+
+                if (version >= 2) {
+                    int directionOrdinal =
+                            input.readInt();
+
+                    BlockDirection[] directions =
+                            BlockDirection.values();
+
+                    if (
+                            directionOrdinal < 0 ||
+                                    directionOrdinal >=
+                                            directions.length
+                    ) {
+                        throw new IOException(
+                                "Unknown machine direction: " +
+                                        directionOrdinal
+                        );
+                    }
+
+                    facing =
+                            directions[
+                                    directionOrdinal
+                                    ];
+
+                    if (facing == BlockDirection.UP) {
+                        throw new IOException(
+                                "Machine cannot face UP."
+                        );
+                    }
+                }
+                else {
+                    /*
+                     * Version 1 machines had no orientation.
+                     */
+                    facing =
+                            BlockDirection.NORTH;
+                }
+
+                BlockPosition anchor =
+                        new BlockPosition(
+                                anchorX,
+                                anchorY,
+                                anchorZ
+                        );
+
+                Machine machine =
+                        createMachineFromSave(
+                                typeId,
+                                anchor,
+                                facing
+                        );
+
+                machines.add(
+                        machine
+                );
+            }
+
+            System.out.println(
+                    "Loaded " +
+                            machines.size() +
+                            " machine(s)."
+            );
+
+            return machines;
+        }
+        catch (EOFException exception) {
+            System.err.println(
+                    "Machine save ended unexpectedly."
+            );
+
+            return List.of();
+        }
+        catch (IOException exception) {
+            System.err.println(
+                    "Failed to load machines."
+            );
+
+            exception.printStackTrace();
+
+            return List.of();
+        }
+    }
+
+    private Machine createMachineFromSave(
+            String typeId,
+            BlockPosition anchor,
+            BlockDirection facing
+    ) throws IOException {
+        return switch (typeId) {
+            case "primitive_furnace" ->
+                    new PrimitiveFurnace(
+                            anchor,
+                            facing
+                    );
+
+            default ->
+                    throw new IOException(
+                            "Unknown saved machine type: " +
+                                    typeId
+                    );
+        };
     }
 
     private record SavedInventoryStack(

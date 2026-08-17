@@ -661,11 +661,9 @@ public class Main {
                         machine.getClass()
                                 .getSimpleName() +
                         " | Anchor: " +
-                        anchor.x() +
-                        ", " +
-                        anchor.y() +
-                        ", " +
-                        anchor.z()
+                        machine.getAnchor() +
+                        " | Facing: " +
+                        machine.getFacing()
         );
     }
 
@@ -1990,6 +1988,24 @@ vec3 litColor =
         int blockY = currentRaycast.hitY();
         int blockZ = currentRaycast.hitZ();
 
+        Machine targetedMachine =
+                world.getMachineAt(
+                        blockX,
+                        blockY,
+                        blockZ
+                );
+
+        if (targetedMachine != null) {
+            removeMachine(
+                    targetedMachine
+            );
+
+            currentRaycast =
+                    calculateRaycast();
+
+            return;
+        }
+
         BlockType oldBlock =
                 world.getBlock(
                         blockX,
@@ -2334,6 +2350,86 @@ vec3 litColor =
         );
     }
 
+    private void removeMachine(
+            Machine machine
+    ) {
+        if (machine == null) {
+            return;
+        }
+
+        /*
+         * Remove the machine from the registry first.
+         *
+         * From this point onward none of its occupied cells
+         * should resolve back to a live machine.
+         */
+        world.removeMachine(
+                machine
+        );
+
+        for (
+                BlockPosition position :
+                machine.getOccupiedBlocks()
+        ) {
+            BlockType oldBlock =
+                    world.getBlock(
+                            position.x(),
+                            position.y(),
+                            position.z()
+                    );
+
+            if (oldBlock == null) {
+                continue;
+            }
+
+            world.setBlock(
+                    position.x(),
+                    position.y(),
+                    position.z(),
+                    null
+            );
+
+            rebuildEditedChunkImmediately(
+                    position.x(),
+                    position.y(),
+                    position.z()
+            );
+
+            Set<Chunk> lightChangedChunks =
+                    lightEngine.blockChanged(
+                            world,
+                            position.x(),
+                            position.y(),
+                            position.z(),
+                            oldBlock,
+                            null
+                    );
+
+            for (
+                    Chunk changedChunk :
+                    lightChangedChunks
+            ) {
+                chunkWorker.requestRemesh(
+                        changedChunk
+                );
+            }
+
+            rebuildBoundaryNeighbors(
+                    position.x(),
+                    position.y(),
+                    position.z()
+            );
+        }
+
+        System.out.println(
+                "Removed " +
+                        machine.getClass()
+                                .getSimpleName() +
+                        " at anchor " +
+                        machine.getAnchor()
+        );
+    }
+
     private void placeTestFurnace() {
         if (currentRaycast == null) {
             return;
@@ -2348,13 +2444,17 @@ vec3 litColor =
         int anchorZ =
                 currentRaycast.placementZ();
 
+        BlockDirection facing =
+                getMachineFacingFromCamera();
+
         PrimitiveFurnace furnace =
                 new PrimitiveFurnace(
                         new BlockPosition(
                                 anchorX,
                                 anchorY,
                                 anchorZ
-                        )
+                        ),
+                        facing
                 );
 
         /*
@@ -2456,7 +2556,9 @@ vec3 litColor =
                         ", " +
                         anchorY +
                         ", " +
-                        anchorZ
+                        anchorZ +
+                        " facing " +
+                        facing
         );
 
         currentRaycast =
@@ -2685,6 +2787,49 @@ vec3 litColor =
 
 
         }
+    }
+
+    private BlockDirection getMachineFacingFromCamera() {
+        float yaw =
+                camera.getYaw();
+
+        /*
+         * Normalize to 0–360.
+         */
+        yaw =
+                (
+                        yaw %
+                                360.0f +
+                                360.0f
+                ) %
+                        360.0f;
+
+        /*
+         * Assuming your camera uses:
+         *
+         * -90 = north-ish
+         *   0 = east
+         *  90 = south
+         * 180 = west
+         *
+         * This maps to the nearest cardinal direction.
+         */
+        if (
+                yaw >= 315.0f ||
+                        yaw < 45.0f
+        ) {
+            return BlockDirection.EAST;
+        }
+
+        if (yaw < 135.0f) {
+            return BlockDirection.SOUTH;
+        }
+
+        if (yaw < 225.0f) {
+            return BlockDirection.WEST;
+        }
+
+        return BlockDirection.NORTH;
     }
 
     /*
@@ -3019,6 +3164,10 @@ vec3 litColor =
                 playerInventory,
                 hotbar
         );
+
+        saveManager.saveMachines(
+                world.getMachines()
+        );
     }
 
     private void loadPlayer() {
@@ -3049,6 +3198,10 @@ vec3 litColor =
 
         hotbar.selectSlot(
                 playerData.selectedHotbarSlot() + 1
+        );
+
+        world.loadMachines(
+                saveManager.loadMachines()
         );
 
         System.out.println(

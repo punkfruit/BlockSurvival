@@ -401,6 +401,27 @@ public class World {
         return machineManager.getMachines();
     }
 
+    public void loadMachines(
+            Iterable<Machine> machines
+    ) {
+        for (
+                Machine machine :
+                machines
+        ) {
+            boolean registered =
+                    machineManager.register(
+                            machine
+                    );
+
+            if (!registered) {
+                System.err.println(
+                        "Could not restore machine at " +
+                                machine.getAnchor()
+                );
+            }
+        }
+    }
+
     public BlockDirection getBlockDirection(
             int worldX,
             int worldY,
