@@ -582,6 +582,53 @@ public class Inventory
         return true;
     }
 
+    public boolean transferOneTo(
+            ItemStack stack,
+            Inventory destination
+    ) {
+        if (
+                stack == null ||
+                        destination == null ||
+                        !stacks.contains(stack)
+        ) {
+            return false;
+        }
+
+        ItemDefinition definition =
+                stack.getDefinition();
+
+        /*
+         * Try adding one to the destination first.
+         *
+         * add() returns the amount that DID NOT fit.
+         */
+        int remaining =
+                destination.add(
+                        definition,
+                        1
+                );
+
+        if (remaining != 0) {
+            return false;
+        }
+
+        /*
+         * Destination accepted it, so remove exactly one
+         * from this specific stack.
+         */
+        stack.removeQuantity(
+                1
+        );
+
+        if (stack.getQuantity() == 0) {
+            stacks.remove(
+                    stack
+            );
+        }
+
+        return true;
+    }
+
     public void clear() {
         stacks.clear();
     }

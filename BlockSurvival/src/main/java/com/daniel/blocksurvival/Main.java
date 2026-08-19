@@ -7,6 +7,7 @@ import com.daniel.blocksurvival.graphics.*;
 import com.daniel.blocksurvival.inventory.*;
 import com.daniel.blocksurvival.loot.BlockDrops;
 import com.daniel.blocksurvival.loot.ItemDrop;
+import com.daniel.blocksurvival.machine.FurnaceScreen;
 import com.daniel.blocksurvival.machine.Machine;
 import com.daniel.blocksurvival.machine.PrimitiveFurnace;
 import com.daniel.blocksurvival.world.*;
@@ -38,7 +39,7 @@ public class Main {
     public final World world = new World(); //setting public temp
 
     private final SaveManager saveManager =
-            new SaveManager("OreTest");
+            new SaveManager("MacbineTest");
 
     private final TerrainGenerator terrainGenerator =
             new TerrainGenerator(WORLD_SEED);
@@ -78,6 +79,7 @@ public class Main {
     private UiRenderer uiRenderer;
     private ItemEntityRenderer itemEntityRenderer;
     private TextRenderer textRenderer;
+    private FurnaceRenderer furnaceRenderer;
 
     private RaycastResult currentRaycast;
 
@@ -123,6 +125,9 @@ public class Main {
                     3
             );
     private InventoryRenderer inventoryRenderer;
+
+    private final FurnaceScreen furnaceScreen =
+            new FurnaceScreen();
 
     private float deltaTime = 0.0f;
     private float previousFrameTime = 0.0f;
@@ -183,10 +188,69 @@ public class Main {
                             key == GLFW_KEY_ESCAPE &&
                                     action == GLFW_PRESS
                     ) {
+                        if (furnaceScreen.isOpen()) {
+                            furnaceScreen.close();
+
+                            return;
+                        }
+
+                        if (inventoryRenderer.isVisible()) {
+                            inventoryRenderer.setVisible(
+                                    false
+                            );
+
+                            return;
+                        }
+
                         glfwSetWindowShouldClose(
                                 windowHandle,
                                 true
                         );
+
+                        return;
+                    }
+
+                    if (
+                            furnaceScreen.isOpen() &&
+                                    action == GLFW_PRESS
+                    ) {
+                        switch (key) {
+                            case GLFW_KEY_LEFT,
+                                 GLFW_KEY_A ->
+                                    furnaceScreen.moveHorizontal(
+                                            -1,
+                                            playerInventory
+                                    );
+
+                            case GLFW_KEY_RIGHT,
+                                 GLFW_KEY_D ->
+                                    furnaceScreen.moveHorizontal(
+                                            1,
+                                            playerInventory
+                                    );
+
+                            case GLFW_KEY_UP,
+                                 GLFW_KEY_W ->
+                                    furnaceScreen.moveVertical(
+                                            -1,
+                                            playerInventory
+                                    );
+
+                            case GLFW_KEY_DOWN,
+                                 GLFW_KEY_S ->
+                                    furnaceScreen.moveVertical(
+                                            1,
+                                            playerInventory
+                                    );
+
+                            case GLFW_KEY_ENTER,
+                                 GLFW_KEY_SPACE ->
+                                    furnaceScreen.transferSelected(
+                                            playerInventory
+                                    );
+                        }
+
+                        return;
                     }
 
                     if (
@@ -406,6 +470,15 @@ public class Main {
                                         8
                                 );
 
+                        int remaining2 =
+                                playerInventory.collect(
+                                        Items.fromBlock(
+                                                BlockType.COAL_ORE
+                                        ),
+                                        8
+                                );
+
+
                         System.out.println(
                                 "Debug: gave " +
                                         (8 - remaining) +
@@ -435,6 +508,17 @@ public class Main {
                         addDebugFurnaceContents();
                     }
 
+                    if (
+                            key == GLFW_KEY_E &&
+                                    action == GLFW_PRESS &&
+                                    !inventoryRenderer.isVisible() &&
+                                    !furnaceScreen.isOpen()
+                    ) {
+                        openTargetedMachine();
+
+                        return;
+                    }
+
 
                 }
         );
@@ -443,7 +527,8 @@ public class Main {
                 window,
                 (windowHandle, button, action, mods) -> {
                     if (
-                            inventoryRenderer.isVisible()
+                            inventoryRenderer.isVisible() ||
+                                    furnaceScreen.isOpen()
                     ) {
                         return;
                     }
@@ -469,6 +554,14 @@ public class Main {
         glfwSetScrollCallback(
                 window,
                 (windowHandle, horizontalOffset, verticalOffset) -> {
+
+                    if (
+                            inventoryRenderer.isVisible() ||
+                                    furnaceScreen.isOpen()
+                    ) {
+                        return;
+                    }
+
                     hotbar.scroll(
                             verticalOffset
                     );
@@ -507,7 +600,10 @@ public class Main {
                     horizontalOffset *= sensitivity;
                     verticalOffset *= sensitivity;
 
-                    if (!inventoryRenderer.isVisible()) { //UNSURE IF THIS IS THE RIGHT PLACE
+                    if (
+                            !inventoryRenderer.isVisible() &&
+                                    !furnaceScreen.isOpen()
+                    ) {
                         camera.rotate(
                                 horizontalOffset,
                                 verticalOffset
@@ -613,6 +709,11 @@ public class Main {
                 );
         inventoryRenderer =
                 new InventoryRenderer(
+                        atlasTexture,
+                        textRenderer
+                );
+        furnaceRenderer =
+                new FurnaceRenderer(
                         atlasTexture,
                         textRenderer
                 );
@@ -969,6 +1070,41 @@ public class Main {
             */
 
             uploadedCount++;
+        }
+    }
+
+    private void openTargetedMachine() {
+        if (currentRaycast == null) {
+            return;
+        }
+
+        Machine machine =
+                world.getMachineAt(
+                        currentRaycast.hitX(),
+                        currentRaycast.hitY(),
+                        currentRaycast.hitZ()
+                );
+
+        if (
+                machine instanceof PrimitiveFurnace furnace
+        ) {
+            furnaceScreen.open(
+                    furnace
+            );
+
+            inventoryRenderer.setVisible(
+                    false
+            );
+
+            breakBlockRequested =
+                    false;
+
+            placeBlockRequested =
+                    false;
+
+            System.out.println(
+                    "Primitive Furnace UI opened."
+            );
         }
     }
 
@@ -2964,7 +3100,10 @@ vec3 litColor =
             else {
 
 
-                if(!inventoryRenderer.isVisible()){
+                if (
+                        !inventoryRenderer.isVisible() &&
+                                !furnaceScreen.isOpen()
+                ) {
                     camera.updatePhysics(
                             world,
                             deltaTime
@@ -3138,6 +3277,12 @@ vec3 litColor =
                     framebufferWidth,
                     framebufferHeight
             );
+            furnaceRenderer.render(
+                    furnaceScreen,
+                    playerInventory,
+                    framebufferWidth,
+                    framebufferHeight
+            );
 
 
 
@@ -3260,6 +3405,8 @@ vec3 litColor =
         if (inventoryRenderer != null) {
             inventoryRenderer.destroy();
         }
+
+        furnaceRenderer.destroy();
 
         if (uiRenderer != null) {
             uiRenderer.cleanup();

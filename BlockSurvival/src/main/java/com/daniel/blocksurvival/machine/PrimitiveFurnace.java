@@ -1,13 +1,11 @@
 package com.daniel.blocksurvival.machine;
 
-import com.daniel.blocksurvival.inventory.Inventory;
-import com.daniel.blocksurvival.inventory.ItemDefinition;
-import com.daniel.blocksurvival.inventory.Items;
+import com.daniel.blocksurvival.inventory.*;
 import com.daniel.blocksurvival.world.AtlasTile;
 import com.daniel.blocksurvival.world.BlockDirection;
 import com.daniel.blocksurvival.world.BlockFace;
 import com.daniel.blocksurvival.world.BlockPosition;
-import com.daniel.blocksurvival.inventory.Items;
+
 import java.util.ArrayList;
 
 import java.util.List;
@@ -461,6 +459,59 @@ public class PrimitiveFurnace
                                     getFacing()
                     );
         };
+    }
+
+    public boolean transferFromPlayer(
+            Inventory playerInventory,
+            ItemStack stack
+    ) {
+        if (
+                playerInventory == null ||
+                        stack == null
+        ) {
+            return false;
+        }
+
+        ItemDefinition item =
+                stack.getDefinition();
+
+        Inventory destination;
+
+        if (canAcceptInput(item)) {
+            destination =
+                    inputInventory;
+        }
+        else if (canAcceptFuel(item)) {
+            destination =
+                    fuelInventory;
+        }
+        else {
+            return false;
+        }
+
+        return playerInventory.transferOneTo(
+                stack,
+                destination
+        );
+    }
+
+    public boolean transferToPlayer(
+            Inventory sourceInventory,
+            Inventory playerInventory,
+            ItemStack stack
+    ) {
+        if (
+                sourceInventory == null ||
+                        playerInventory == null ||
+                        stack == null
+        ) {
+            return false;
+        }
+
+        return sourceInventory.transferOneTo(
+                stack,
+                playerInventory
+        );
     }
 
     //debug

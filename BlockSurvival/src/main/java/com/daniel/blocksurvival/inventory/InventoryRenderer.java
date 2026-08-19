@@ -1,5 +1,6 @@
 package com.daniel.blocksurvival.inventory;
 
+import com.daniel.blocksurvival.graphics.InventoryUiPainter;
 import com.daniel.blocksurvival.graphics.Shader;
 import org.joml.Matrix4f;
 
@@ -23,12 +24,9 @@ public class InventoryRenderer {
 
     private boolean visible;
 
-    private final Shader shader;
 
-    private final int vertexArrayId;
-    private final int vertexBufferId;
-    private final Texture atlasTexture;
     private final TextRenderer textRenderer;
+    private final InventoryUiPainter painter;
 
     private int selectedGridX =
             0;
@@ -66,148 +64,14 @@ public class InventoryRenderer {
             );
         }
 
-        this.atlasTexture =
-                atlasTexture;
-
         this.textRenderer =
                 textRenderer;
-        String vertexShaderSource = """
-        #version 330 core
 
-        layout (location = 0) in vec2 position;
-        layout (location = 1) in vec2 textureCoordinate;
-
-        uniform mat4 projectionMatrix;
-
-        out vec2 fragmentTextureCoordinate;
-
-        void main() {
-            gl_Position =
-                    projectionMatrix *
-                    vec4(
-                            position,
-                            0.0,
-                            1.0
-                    );
-
-            fragmentTextureCoordinate =
-                    textureCoordinate;
-        }
-        """;
-
-        String fragmentShaderSource = """
-        #version 330 core
-
-        in vec2 fragmentTextureCoordinate;
-
-        uniform vec4 rectangleColor;
-
-        uniform sampler2D atlasTexture;
-
-        /*
-         * 0 = solid colored rectangle
-         * 1 = textured rectangle
-         */
-        uniform int useTexture;
-
-        out vec4 finalColor;
-
-        void main() {
-            if (useTexture == 1) {
-                vec4 textureColor =
-                        texture(
-                                atlasTexture,
-                                fragmentTextureCoordinate
-                        );
-
-                if (textureColor.a < 0.1) {
-                    discard;
-                }
-
-                finalColor =
-                        textureColor;
-            }
-            else {
-                finalColor =
-                        rectangleColor;
-            }
-        }
-        """;
-
-        shader =
-                new Shader(
-                        vertexShaderSource,
-                        fragmentShaderSource
+        this.painter =
+                new InventoryUiPainter(
+                        atlasTexture,
+                        textRenderer
                 );
-
-        vertexArrayId =
-                glGenVertexArrays();
-
-        vertexBufferId =
-                glGenBuffers();
-
-        glBindVertexArray(
-                vertexArrayId
-        );
-
-        glBindBuffer(
-                GL_ARRAY_BUFFER,
-                vertexBufferId
-        );
-
-        /*
-         * Allocate enough space for one rectangle.
-         *
-         * GL_DYNAMIC_DRAW means the coordinates will change
-         * frequently while the buffer itself is reused.
-         */
-        glBufferData(
-                GL_ARRAY_BUFFER,
-                FLOATS_PER_RECTANGLE *
-                        Float.BYTES,
-                GL_DYNAMIC_DRAW
-        );
-
-        /*
-         * Position: x, y
-         */
-        glEnableVertexAttribArray(
-                0
-        );
-
-        glVertexAttribPointer(
-                0,
-                2,
-                GL_FLOAT,
-                false,
-                4 * Float.BYTES,
-                0
-        );
-
-        /*
-         * Texture coordinates: u, v
-         */
-        glEnableVertexAttribArray(
-                1
-        );
-
-        glVertexAttribPointer(
-                1,
-                2,
-                GL_FLOAT,
-                false,
-                4 * Float.BYTES,
-                2L * Float.BYTES
-        );
-
-        shader.bind();
-
-        shader.setInt(
-                "atlasTexture",
-                0
-        );
-
-        shader.unbind();
     }
 
     public void toggle() {
@@ -235,45 +99,9 @@ public class InventoryRenderer {
             return;
         }
 
-        /*
-         * Draw UI over the 3D world regardless of depth.
-         */
-        glDisable(
-                GL_DEPTH_TEST
-        );
-
-        /*
-         * Required for transparent overlays and panels.
-         */
-        glEnable(
-                GL_BLEND
-        );
-
-        glBlendFunc(
-                GL_SRC_ALPHA,
-                GL_ONE_MINUS_SRC_ALPHA
-        );
-
-        shader.bind();
-
-        glActiveTexture(
-                GL_TEXTURE0
-        );
-
-        atlasTexture.bind();
-
-        Matrix4f projectionMatrix =
-                new Matrix4f()
-                        .ortho2D(
-                                0.0f,
-                                framebufferWidth,
-                                framebufferHeight,
-                                0.0f
-                        );
-
-        shader.setMatrix4(
-                "projectionMatrix",
-                projectionMatrix
+        painter.begin(
+                framebufferWidth,
+                framebufferHeight
         );
 
         drawBackground(
@@ -287,16 +115,7 @@ public class InventoryRenderer {
                 framebufferHeight
         );
 
-        atlasTexture.unbind();
-        shader.unbind();
-
-        glDisable(
-                GL_BLEND
-        );
-
-        glEnable(
-                GL_DEPTH_TEST
-        );
+        painter.end();
     }
 
     private void drawBackground(
@@ -943,74 +762,13 @@ public class InventoryRenderer {
             float cellSize,
             float cellGap
     ) {
-        for (
-                int gridY = 0;
-                gridY < inventory.getHeight();
-                gridY++
-        ) {
-            for (
-                    int gridX = 0;
-                    gridX < inventory.getWidth();
-                    gridX++
-            ) {
-                float x =
-                        startX +
-                                gridX *
-                                        (
-                                                cellSize +
-                                                        cellGap
-                                        );
-
-                float y =
-                        startY +
-                                gridY *
-                                        (
-                                                cellSize +
-                                                        cellGap
-                                        );
-
-                /*
-                 * Slightly lighter outer cell.
-                 */
-                drawRectangle(
-                        x,
-                        y,
-                        cellSize,
-                        cellSize,
-
-                        0.32f,
-                        0.34f,
-                        0.36f,
-                        1.0f
-                );
-
-                /*
-                 * Dark inner area creates a simple border.
-                 */
-                float border =
-                        Math.max(
-                                2.0f,
-                                cellSize *
-                                        0.045f
-                        );
-
-                drawRectangle(
-                        x + border,
-                        y + border,
-                        cellSize -
-                                border *
-                                        2.0f,
-                        cellSize -
-                                border *
-                                        2.0f,
-
-                        0.15f,
-                        0.16f,
-                        0.17f,
-                        1.0f
-                );
-            }
-        }
+        painter.drawGrid(
+                inventory,
+                startX,
+                startY,
+                cellSize,
+                cellGap
+        );
     }
 
 
@@ -1021,124 +779,13 @@ public class InventoryRenderer {
             float cellSize,
             float cellGap
     ) {
-        for (
-                ItemStack stack :
-                inventory.getStacks()
-        ) {
-            ItemDefinition definition =
-                    stack.getDefinition();
-
-            int itemWidth =
-                    definition.getPlacedWidth(
-                            stack.isRotated()
-                    );
-
-            int itemHeight =
-                    definition.getPlacedHeight(
-                            stack.isRotated()
-                    );
-
-            /*
-             * Convert the inventory grid coordinates into
-             * framebuffer pixel coordinates.
-             */
-            float itemX =
-                    startX +
-                            stack.getGridX() *
-                                    (
-                                            cellSize +
-                                                    cellGap
-                                    );
-
-            float itemY =
-                    startY +
-                            stack.getGridY() *
-                                    (
-                                            cellSize +
-                                                    cellGap
-                                    );
-
-            /*
-             * Include the gaps between cells inside a
-             * multi-cell item.
-             *
-             * A 2-cell-wide item covers:
-             *
-             * cell + gap + cell
-             */
-            float itemPixelWidth =
-                    itemWidth *
-                            cellSize +
-                            (
-                                    itemWidth -
-                                            1
-                            ) *
-                                    cellGap;
-
-            float itemPixelHeight =
-                    itemHeight *
-                            cellSize +
-                            (
-                                    itemHeight -
-                                            1
-                            ) *
-                                    cellGap;
-
-            ItemColor color =
-                    createItemColor(
-                            definition.id()
-                    );
-
-            /*
-             * Dark outer border.
-             */
-            drawRectangle(
-                    itemX,
-                    itemY,
-                    itemPixelWidth,
-                    itemPixelHeight,
-
-                    color.red() *
-                            0.55f,
-                    color.green() *
-                            0.55f,
-                    color.blue() *
-                            0.55f,
-                    1.0f
-            );
-
-            /*
-             * Bright inner item area.
-             */
-            float itemBorder =
-                    Math.max(
-                            4.0f,
-                            cellSize *
-                                    0.075f
-                    );
-
-
-
-            AtlasTile iconTile =
-                    definition.inventoryIcon();
-
-            drawTexturedRectangle(
-                    itemX + itemBorder,
-                    itemY + itemBorder,
-                    itemPixelWidth -
-                            itemBorder *
-                                    2.0f,
-                    itemPixelHeight -
-                            itemBorder *
-                                    2.0f,
-                    iconTile
-            );
-
-
-
-
-
-        }
+        painter.drawItems(
+                inventory,
+                startX,
+                startY,
+                cellSize,
+                cellGap
+        );
     }
 
 
@@ -1196,73 +843,20 @@ public class InventoryRenderer {
             float y,
             float width,
             float height,
-
             float red,
             float green,
             float blue,
             float alpha
     ) {
-        float right =
-                x +
-                        width;
-
-        float bottom =
-                y +
-                        height;
-
-        float[] vertices = {
-                x,     y,      0.0f, 0.0f,
-                x,     bottom, 0.0f, 1.0f,
-                right, bottom, 1.0f, 1.0f,
-
-                right, bottom, 1.0f, 1.0f,
-                right, y,      1.0f, 0.0f,
-                x,     y,      0.0f, 0.0f
-        };
-
-        shader.setInt(
-                "useTexture",
-                0
-        );
-
-        shader.setVector4(
-                "rectangleColor",
-                new org.joml.Vector4f(
-                        red,
-                        green,
-                        blue,
-                        alpha
-                )
-        );
-
-        glBindVertexArray(
-                vertexArrayId
-        );
-
-        glBindBuffer(
-                GL_ARRAY_BUFFER,
-                vertexBufferId
-        );
-
-        glBufferSubData(
-                GL_ARRAY_BUFFER,
-                0,
-                vertices
-        );
-
-        glDrawArrays(
-                GL_TRIANGLES,
-                0,
-                6
-        );
-
-        glBindBuffer(
-                GL_ARRAY_BUFFER,
-                0
-        );
-
-        glBindVertexArray(
-                0
+        painter.drawRectangle(
+                x,
+                y,
+                width,
+                height,
+                red,
+                green,
+                blue,
+                alpha
         );
     }
 
@@ -1273,76 +867,12 @@ public class InventoryRenderer {
             float height,
             AtlasTile tile
     ) {
-        float right =
-                x +
-                        width;
-
-        float bottom =
-                y +
-                        height;
-
-        float tileSize =
-                BlockType.getTileSize();
-
-        float minimumU =
-                tile.column() *
-                        tileSize;
-
-        float minimumV =
-                tile.row() *
-                        tileSize;
-
-        float maximumU =
-                minimumU +
-                        tileSize;
-
-        float maximumV =
-                minimumV +
-                        tileSize;
-
-        float[] vertices = {
-                x,     y,      minimumU, minimumV,
-                x,     bottom, minimumU, maximumV,
-                right, bottom, maximumU, maximumV,
-
-                right, bottom, maximumU, maximumV,
-                right, y,      maximumU, minimumV,
-                x,     y,      minimumU, minimumV
-        };
-
-        shader.setInt(
-                "useTexture",
-                1
-        );
-
-        glBindVertexArray(
-                vertexArrayId
-        );
-
-        glBindBuffer(
-                GL_ARRAY_BUFFER,
-                vertexBufferId
-        );
-
-        glBufferSubData(
-                GL_ARRAY_BUFFER,
-                0,
-                vertices
-        );
-
-        glDrawArrays(
-                GL_TRIANGLES,
-                0,
-                6
-        );
-
-        glBindBuffer(
-                GL_ARRAY_BUFFER,
-                0
-        );
-
-        glBindVertexArray(
-                0
+        painter.drawTexturedRectangle(
+                x,
+                y,
+                width,
+                height,
+                tile
         );
     }
 
@@ -1529,15 +1059,7 @@ public class InventoryRenderer {
     }
 
     public void destroy() {
-        glDeleteBuffers(
-                vertexBufferId
-        );
-
-        glDeleteVertexArrays(
-                vertexArrayId
-        );
-
-        shader.destroy();
+        painter.destroy();
     }
     private record ItemColor(
             float red,
