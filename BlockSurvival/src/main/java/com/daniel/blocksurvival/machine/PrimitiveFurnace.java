@@ -1,9 +1,13 @@
 package com.daniel.blocksurvival.machine;
 
+import com.daniel.blocksurvival.inventory.Inventory;
+import com.daniel.blocksurvival.inventory.ItemDefinition;
+import com.daniel.blocksurvival.inventory.Items;
 import com.daniel.blocksurvival.world.AtlasTile;
 import com.daniel.blocksurvival.world.BlockDirection;
 import com.daniel.blocksurvival.world.BlockFace;
 import com.daniel.blocksurvival.world.BlockPosition;
+import com.daniel.blocksurvival.inventory.Items;
 import java.util.ArrayList;
 
 import java.util.List;
@@ -63,6 +67,24 @@ public class PrimitiveFurnace
             new AtlasTile(
                     3 + 1,
                     4
+            );
+
+    private final Inventory inputInventory =
+            new Inventory(
+                    2,
+                    1
+            );
+
+    private final Inventory fuelInventory =
+            new Inventory(
+                    1,
+                    1
+            );
+
+    private final Inventory outputInventory =
+            new Inventory(
+                    2,
+                    1
             );
 
     public PrimitiveFurnace(
@@ -177,6 +199,79 @@ public class PrimitiveFurnace
          * Everything else uses generic casing.
          */
         return CASING_TEXTURE;
+    }
+
+    public Inventory getInputInventory() {
+        return inputInventory;
+    }
+
+    public Inventory getFuelInventory() {
+        return fuelInventory;
+    }
+
+    public Inventory getOutputInventory() {
+        return outputInventory;
+    }
+
+    public boolean canAcceptInput(
+            ItemDefinition item
+    ) {
+        return item == Items.RAW_IRON ||
+                item == Items.RAW_COPPER;
+    }
+
+    public boolean canAcceptFuel(
+            ItemDefinition item
+    ) {
+        return item == Items.COAL;
+    }
+
+    public int insertInput(
+            ItemDefinition item,
+            int quantity
+    ) {
+        if (!canAcceptInput(item)) {
+            return quantity;
+        }
+
+        return inputInventory.collect(
+                item,
+                quantity
+        );
+    }
+
+    public int insertFuel(
+            ItemDefinition item,
+            int quantity
+    ) {
+        if (!canAcceptFuel(item)) {
+            return quantity;
+        }
+
+        return fuelInventory.collect(
+                item,
+                quantity
+        );
+    }
+
+    public void printInventoryStatus() {
+        System.out.println(
+                "Input stacks: " +
+                        inputInventory.getStacks()
+                                .size()
+        );
+
+        System.out.println(
+                "Fuel stacks: " +
+                        fuelInventory.getStacks()
+                                .size()
+        );
+
+        System.out.println(
+                "Output stacks: " +
+                        outputInventory.getStacks()
+                                .size()
+        );
     }
 
     public BlockPosition localToWorld(
@@ -366,5 +461,18 @@ public class PrimitiveFurnace
                                     getFacing()
                     );
         };
+    }
+
+    //debug
+    public void addDebugContents() {
+        insertInput(
+                Items.RAW_IRON,
+                3
+        );
+
+        insertFuel(
+                Items.COAL,
+                2
+        );
     }
 }

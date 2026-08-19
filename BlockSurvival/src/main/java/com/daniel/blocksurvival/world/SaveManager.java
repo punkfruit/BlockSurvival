@@ -62,7 +62,7 @@ public class SaveManager {
      *
      * Block Survival MaChines
      */
-    private static final int MACHINE_FILE_VERSION = 2;
+    private static final int MACHINE_FILE_VERSION = 3;
 
     private static final int PLAYER_FILE_MAGIC =
             0x4253504C;
@@ -1085,6 +1085,11 @@ public class SaveManager {
                         machine.getFacing()
                                 .ordinal()
                 );
+
+                writeMachineData(
+                        output,
+                        machine
+                );
             }
 
             System.out.println(
@@ -1231,6 +1236,13 @@ public class SaveManager {
                                 facing
                         );
 
+                if (version >= 3) {
+                    readMachineData(
+                            input,
+                            machine
+                    );
+                }
+
                 machines.add(
                         machine
                 );
@@ -1280,6 +1292,70 @@ public class SaveManager {
                                     typeId
                     );
         };
+    }
+
+    private void writeMachineData(
+            DataOutputStream output,
+            Machine machine
+    ) throws IOException {
+
+        if (
+                machine instanceof PrimitiveFurnace furnace
+        ) {
+            writeInventory(
+                    output,
+                    furnace.getInputInventory()
+            );
+
+            writeInventory(
+                    output,
+                    furnace.getFuelInventory()
+            );
+
+            writeInventory(
+                    output,
+                    furnace.getOutputInventory()
+            );
+
+            return;
+        }
+
+        throw new IOException(
+                "No save-data writer exists for machine type: " +
+                        machine.getTypeId()
+        );
+    }
+
+    private void readMachineData(
+            DataInputStream input,
+            Machine machine
+    ) throws IOException {
+
+        if (
+                machine instanceof PrimitiveFurnace furnace
+        ) {
+            readInventory(
+                    input,
+                    furnace.getInputInventory()
+            );
+
+            readInventory(
+                    input,
+                    furnace.getFuelInventory()
+            );
+
+            readInventory(
+                    input,
+                    furnace.getOutputInventory()
+            );
+
+            return;
+        }
+
+        throw new IOException(
+                "No save-data reader exists for machine type: " +
+                        machine.getTypeId()
+        );
     }
 
     private record SavedInventoryStack(

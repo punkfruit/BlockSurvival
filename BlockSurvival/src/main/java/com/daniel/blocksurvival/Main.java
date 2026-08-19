@@ -428,6 +428,13 @@ public class Main {
                         inspectTargetedMachine();
                     }
 
+                    if (
+                            key == GLFW_KEY_F9 &&
+                                    action == GLFW_PRESS
+                    ) {
+                        addDebugFurnaceContents();
+                    }
+
 
                 }
         );
@@ -665,6 +672,25 @@ public class Main {
                         " | Facing: " +
                         machine.getFacing()
         );
+
+        if (
+                machine instanceof PrimitiveFurnace furnace
+        ) {
+            printInventory(
+                    "Input",
+                    furnace.getInputInventory()
+            );
+
+            printInventory(
+                    "Fuel",
+                    furnace.getFuelInventory()
+            );
+
+            printInventory(
+                    "Output",
+                    furnace.getOutputInventory()
+            );
+        }
     }
 
 
@@ -3305,6 +3331,52 @@ vec3 litColor =
                                             ? " rotated"
                                             : ""
                             )
+            );
+        }
+    }
+
+    //debug
+    private void addDebugFurnaceContents() {
+        if (currentRaycast == null) {
+            return;
+        }
+
+        Machine machine =
+                world.getMachineAt(
+                        currentRaycast.hitX(),
+                        currentRaycast.hitY(),
+                        currentRaycast.hitZ()
+                );
+
+        if (
+                machine instanceof PrimitiveFurnace furnace
+        ) {
+            furnace.addDebugContents();
+
+            System.out.println(
+                    "Added test furnace contents."
+            );
+        }
+    }
+
+    private void printInventory(
+            String name,
+            Inventory inventory
+    ) {
+        System.out.println(
+                name + ":"
+        );
+
+        for (
+                ItemStack stack :
+                inventory.getStacks()
+        ) {
+            System.out.println(
+                    "  " +
+                            stack.getDefinition()
+                                    .displayName() +
+                            " x" +
+                            stack.getQuantity()
             );
         }
     }
