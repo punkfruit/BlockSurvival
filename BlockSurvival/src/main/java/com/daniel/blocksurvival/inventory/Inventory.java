@@ -629,6 +629,56 @@ public class Inventory
         return true;
     }
 
+    public int transferTo(
+            ItemStack stack,
+            Inventory destination,
+            int requestedQuantity
+    ) {
+        if (
+                stack == null ||
+                        destination == null ||
+                        !stacks.contains(stack) ||
+                        requestedQuantity <= 0
+        ) {
+            return 0;
+        }
+
+        int quantityToTransfer =
+                Math.min(
+                        requestedQuantity,
+                        stack.getQuantity()
+                );
+
+        /*
+         * add() returns the amount that DID NOT fit.
+         */
+        int remaining =
+                destination.add(
+                        stack.getDefinition(),
+                        quantityToTransfer
+                );
+
+        int transferred =
+                quantityToTransfer -
+                        remaining;
+
+        if (transferred <= 0) {
+            return 0;
+        }
+
+        stack.removeQuantity(
+                transferred
+        );
+
+        if (stack.getQuantity() <= 0) {
+            stacks.remove(
+                    stack
+            );
+        }
+
+        return transferred;
+    }
+
     public void clear() {
         stacks.clear();
     }

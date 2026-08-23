@@ -13,6 +13,8 @@ import com.daniel.blocksurvival.inventory.ItemDefinition;
 import com.daniel.blocksurvival.inventory.ItemStack;
 import com.daniel.blocksurvival.inventory.Items;
 import com.daniel.blocksurvival.Hotbar;
+import com.daniel.blocksurvival.machine.FurnaceRecipe;
+import com.daniel.blocksurvival.machine.FurnaceRecipes;
 import com.daniel.blocksurvival.machine.Machine;
 import com.daniel.blocksurvival.machine.PrimitiveFurnace;
 
@@ -62,7 +64,7 @@ public class SaveManager {
      *
      * Block Survival MaChines
      */
-    private static final int MACHINE_FILE_VERSION = 3;
+    private static final int MACHINE_FILE_VERSION = 4;
 
     private static final int PLAYER_FILE_MAGIC =
             0x4253504C;
@@ -1317,6 +1319,23 @@ public class SaveManager {
                     furnace.getOutputInventory()
             );
 
+            output.writeInt(
+                    furnace.getStoredFuel()
+            );
+
+            output.writeFloat(
+                    furnace.getProcessingProgress()
+            );
+
+            FurnaceRecipe activeRecipe =
+                    furnace.getActiveRecipe();
+
+            output.writeUTF(
+                    activeRecipe == null
+                            ? ""
+                            : activeRecipe.id()
+            );
+
             return;
         }
 
@@ -1349,6 +1368,30 @@ public class SaveManager {
                     furnace.getOutputInventory()
             );
 
+            if (MACHINE_FILE_VERSION >= 4) {
+                int storedFuel =
+                        input.readInt();
+
+                float progress =
+                        input.readFloat();
+
+                String recipeId =
+                        input.readUTF();
+
+                FurnaceRecipe recipe =
+                        recipeId.isEmpty()
+                                ? null
+                                : FurnaceRecipes.getById(
+                                recipeId
+                        );
+
+                furnace.restoreProcessingState(
+                        storedFuel,
+                        progress,
+                        recipe
+                );
+            }
+
             return;
         }
 
@@ -1357,6 +1400,8 @@ public class SaveManager {
                         machine.getTypeId()
         );
     }
+
+
 
     private record SavedInventoryStack(
             ItemDefinition definition,

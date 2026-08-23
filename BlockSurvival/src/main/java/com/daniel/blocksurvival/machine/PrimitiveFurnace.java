@@ -13,6 +13,54 @@ import java.util.List;
 public class PrimitiveFurnace
         extends Machine {
 
+    private int storedFuel =
+            0;
+
+    private static final int MAXIMUM_STORED_FUEL =
+            1600;
+
+    private float processingProgress =
+            0.0f;
+
+    private FurnaceRecipe activeRecipe;
+
+    private boolean active =
+            false;
+
+    private boolean visualStateChanged =
+            false;
+
+    private void setActive(
+            boolean newActive
+    ) {
+        if (active == newActive) {
+            return;
+        }
+
+        active =
+                newActive;
+
+        visualStateChanged =
+                true;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public boolean consumeVisualStateChanged() {
+        if (!visualStateChanged) {
+            return false;
+        }
+
+        visualStateChanged =
+                false;
+
+        return true;
+    }
+
+
+
 
     private static final AtlasTile CASING_TEXTURE =
             new AtlasTile(
@@ -162,6 +210,12 @@ public class PrimitiveFurnace
                 localFace == BlockFace.NORTH &&
                         localPosition.y() == 0
         ) {
+            if (isActive()) {
+                return localPosition.x() == 0
+                        ? FURNACE_ON_LEFT
+                        : FURNACE_ON_RIGHT;
+            }
+
             return localPosition.x() == 0
                     ? FURNACE_OFF_LEFT
                     : FURNACE_OFF_RIGHT;
@@ -461,15 +515,17 @@ public class PrimitiveFurnace
         };
     }
 
-    public boolean transferFromPlayer(
+    public int transferFromPlayer(
             Inventory playerInventory,
-            ItemStack stack
+            ItemStack stack,
+            int quantity
     ) {
         if (
                 playerInventory == null ||
-                        stack == null
+                        stack == null ||
+                        quantity <= 0
         ) {
-            return false;
+            return 0;
         }
 
         ItemDefinition item =
@@ -486,32 +542,321 @@ public class PrimitiveFurnace
                     fuelInventory;
         }
         else {
-            return false;
+            return 0;
         }
 
-        return playerInventory.transferOneTo(
+        return playerInventory.transferTo(
                 stack,
-                destination
+                destination,
+                quantity
         );
     }
 
-    public boolean transferToPlayer(
+    public int transferToPlayer(
             Inventory sourceInventory,
             Inventory playerInventory,
-            ItemStack stack
+            ItemStack stack,
+            int quantity
     ) {
         if (
                 sourceInventory == null ||
                         playerInventory == null ||
-                        stack == null
+                        stack == null ||
+                        quantity <= 0
         ) {
-            return false;
+            return 0;
         }
 
-        return sourceInventory.transferOneTo(
+        return sourceInventory.transferTo(
                 stack,
-                playerInventory
+                playerInventory,
+                quantity
         );
+    }
+
+    public int getStoredFuel() {
+        return storedFuel;
+    }
+
+    public int getMaximumStoredFuel() {
+        return MAXIMUM_STORED_FUEL;
+    }
+
+    public float getProcessingProgress() {
+        return processingProgress;
+    }
+
+    public FurnaceRecipe getActiveRecipe() {
+        return activeRecipe;
+    }
+
+    public boolean isBurning() {
+        return activeRecipe != null &&
+                processingProgress > 0.0f;
+    }
+
+    public void update(
+            float deltaTime
+    ) {
+
+        FurnaceRecipe recipe =
+                findAvailableRecipe();
+
+        if (recipe == null) {
+            setActive(
+                    false
+            );
+
+            activeRecipe =
+                    null;
+
+            processingProgress =
+                    0.0f;
+
+            return;
+        }
+
+        /*
+         * If recipe changed, restart progress.
+         */
+        if (activeRecipe != recipe) {
+            activeRecipe =
+                    recipe;
+
+            processingProgress =
+                    0.0f;
+        }
+
+        /*
+         * Make sure enough fuel exists.
+         */
+        if (
+                storedFuel <
+                        recipe.fuelCost()
+        ) {
+            tryLoadFuel();
+        }
+
+        if (
+                storedFuel <
+                        recipe.fuelCost()
+        ) {
+            setActive(
+                    false
+            );
+
+            return;
+        }
+
+        setActive(true);
+
+        processingProgress +=
+                deltaTime;
+
+        if (
+                processingProgress <
+                        recipe.processingSeconds()
+        ) {
+            return;
+        }
+
+        completeRecipe(
+                recipe
+        );
+
+        processingProgress =
+                0.0f;
+    }
+
+    private FurnaceRecipe findAvailableRecipe() {
+        for (
+                ItemStack stack :
+                inputInventory.getStacks()
+        ) {
+            FurnaceRecipe recipe =
+                    FurnaceRecipes.get(
+                            stack.getDefinition()
+                    );
+
+            if (recipe == null) {
+                continue;
+            }
+
+            if (
+                    stack.getQuantity() <
+                            recipe.inputQuantity()
+            ) {
+                continue;
+            }
+
+            /*
+             * Check whether output can actually accept it.
+             */
+            int remaining =
+                    outputInventory.add(
+                            recipe.output(),
+                            recipe.outputQuantity()
+                    );
+
+            if (remaining == 0) {
+                /*
+                 * Undo temporary test insertion.
+                 */
+                outputInventory.remove(
+                        recipe.output(),
+                        recipe.outputQuantity()
+                );
+
+                return recipe;
+            }
+        }
+
+        return null;
+    }
+
+    private void tryLoadFuel() {
+        for (
+                ItemStack stack :
+                fuelInventory.getStacks()
+        ) {
+            FuelDefinition fuel =
+                    Fuels.get(
+                            stack.getDefinition()
+                    );
+
+            if (fuel == null) {
+                continue;
+            }
+
+            /*
+             * Don't waste fuel through overflow.
+             */
+            if (
+                    storedFuel +
+                            fuel.fuelValue() >
+                            MAXIMUM_STORED_FUEL
+            ) {
+                continue;
+            }
+
+            boolean removed =
+                    fuelInventory.remove(
+                            fuel.item(),
+                            1
+                    );
+
+            if (!removed) {
+                return;
+            }
+
+            storedFuel +=
+                    fuel.fuelValue();
+
+            return;
+        }
+    }
+
+    private void completeRecipe(
+            FurnaceRecipe recipe
+    ) {
+        boolean removedInput =
+                inputInventory.remove(
+                        recipe.input(),
+                        recipe.inputQuantity()
+                );
+
+        if (!removedInput) {
+            return;
+        }
+
+        int remaining =
+                outputInventory.add(
+                        recipe.output(),
+                        recipe.outputQuantity()
+                );
+
+        if (remaining != 0) {
+            /*
+             * This should not happen because we checked space first.
+             */
+            System.err.println(
+                    "Furnace output became full unexpectedly."
+            );
+
+            return;
+        }
+
+        storedFuel -=
+                recipe.fuelCost();
+
+        System.out.println(
+                "Smelted " +
+                        recipe.input().displayName() +
+                        " into " +
+                        recipe.output().displayName()
+        );
+    }
+
+    public float getProcessingPercentage() {
+        if (activeRecipe == null) {
+            return 0.0f;
+        }
+
+        return Math.min(
+                1.0f,
+                processingProgress /
+                        activeRecipe.processingSeconds()
+        );
+    }
+
+    public float getFuelPercentage() {
+        return Math.min(
+                1.0f,
+                (float) storedFuel /
+                        (float) MAXIMUM_STORED_FUEL
+        );
+    }
+
+    public void restoreProcessingState(
+            int storedFuel,
+            float processingProgress,
+            FurnaceRecipe activeRecipe
+    ) {
+        this.storedFuel =
+                Math.max(
+                        0,
+                        Math.min(
+                                storedFuel,
+                                MAXIMUM_STORED_FUEL
+                        )
+                );
+
+        this.activeRecipe =
+                activeRecipe;
+
+        if (activeRecipe == null) {
+            this.processingProgress =
+                    0.0f;
+
+            setActive(false);
+
+            return;
+        }
+
+        this.processingProgress =
+                Math.max(
+                        0.0f,
+                        Math.min(
+                                processingProgress,
+                                activeRecipe.processingSeconds()
+                        )
+                );
+
+        /*
+         * The next update decides whether the furnace is
+         * genuinely able to continue processing.
+         */
+        setActive(false);
     }
 
     //debug

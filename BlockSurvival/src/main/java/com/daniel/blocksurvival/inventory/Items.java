@@ -122,6 +122,40 @@ public final class Items {
                     )
             );
 
+    public static final ItemDefinition IRON_INGOT =
+            register(
+                    new ItemDefinition(
+                            "iron_ingot",
+                            "Iron Ingot",
+                            1,
+                            1,
+                            8,
+                            false,
+                            new AtlasTile(
+                                    1,
+                                    3
+                            ),
+                            null
+                    )
+            );
+
+    public static final ItemDefinition COPPER_INGOT =
+            register(
+                    new ItemDefinition(
+                            "copper_ingot",
+                            "Copper Ingot",
+                            1,
+                            1,
+                            8,
+                            false,
+                            new AtlasTile(
+                                    2,
+                                    3
+                            ),
+                            null
+                    )
+            );
+
     static {
         for (BlockType blockType : BlockType.values()) {
             AtlasTile inventoryIcon =

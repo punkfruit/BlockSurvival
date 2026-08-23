@@ -245,7 +245,12 @@ public class Main {
 
                             case GLFW_KEY_ENTER,
                                  GLFW_KEY_SPACE ->
-                                    furnaceScreen.transferSelected(
+                                    furnaceScreen.transferOneSelected(
+                                            playerInventory
+                                    );
+
+                            case GLFW_KEY_F ->
+                                    furnaceScreen.transferStackSelected(
                                             playerInventory
                                     );
                         }
@@ -474,6 +479,14 @@ public class Main {
                                 playerInventory.collect(
                                         Items.fromBlock(
                                                 BlockType.COAL_ORE
+                                        ),
+                                        8
+                                );
+
+                        int remaining3 =
+                                playerInventory.collect(
+                                        Items.fromBlock(
+                                                BlockType.IRON_ORE
                                         ),
                                         8
                                 );
@@ -2994,6 +3007,40 @@ vec3 litColor =
         return BlockDirection.NORTH;
     }
 
+    private void remeshMachine(
+            Machine machine
+    ) {
+        Set<Chunk> affectedChunks =
+                new HashSet<>();
+
+        for (
+                BlockPosition position :
+                machine.getOccupiedBlocks()
+        ) {
+            Chunk chunk =
+                    world.getChunkAtWorldBlock(
+                            position.x(),
+                            position.y(),
+                            position.z()
+                    );
+
+            if (chunk != null) {
+                affectedChunks.add(
+                        chunk
+                );
+            }
+        }
+
+        for (
+                Chunk chunk :
+                affectedChunks
+        ) {
+            chunkWorker.requestRemesh(
+                    chunk
+            );
+        }
+    }
+
     /*
      * TODO:
      * Immediate rebuild currently uses the previous lighting state.
@@ -3154,6 +3201,28 @@ vec3 litColor =
                         calculateRaycast();
             }
 
+
+            //furnace
+            for (
+                    Machine machine :
+                    world.getMachines()
+            ) {
+                if (
+                        machine instanceof PrimitiveFurnace furnace
+                ) {
+                    furnace.update(
+                            deltaTime
+                    );
+
+                    if (
+                            furnace.consumeVisualStateChanged()
+                    ) {
+                        remeshMachine(
+                                furnace
+                        );
+                    }
+                }
+            }
 
             sky.update(
                     deltaTime

@@ -84,7 +84,7 @@ public class FurnaceRenderer {
 
         float panelHeight =
                 Math.min(
-                        framebufferHeight * 0.82f,
+                        framebufferHeight * 0.90f,
                         760.0f
                 );
 
@@ -148,7 +148,7 @@ public class FurnaceRenderer {
         float machineY =
                 panelY +
                         panelHeight *
-                                0.20f;
+                                0.15f;
 
         float inputX =
                 panelX +
@@ -189,6 +189,47 @@ public class FurnaceRenderer {
                 cellGap
         );
 
+        //processing bar
+        float barWidth =
+                panelWidth *
+                        0.50f;
+
+        float barHeight =
+                18.0f;
+
+        float barX =
+                panelX +
+                        (
+                                panelWidth -
+                                        barWidth
+                        ) /
+                                2.0f;
+
+        float processingBarY =
+                machineY +
+                        cellSize +
+                        45.0f;
+
+        float fuelBarY =
+                processingBarY +
+                        50.0f;
+
+        drawProgressBar(
+                barX,
+                processingBarY,
+                barWidth,
+                barHeight,
+                furnace.getProcessingPercentage()
+        );
+
+        drawProgressBar(
+                barX,
+                fuelBarY,
+                barWidth,
+                barHeight,
+                furnace.getFuelPercentage()
+        );
+
         /*
          * PLAYER INVENTORY
          */
@@ -210,10 +251,20 @@ public class FurnaceRenderer {
                         ) /
                                 2.0f;
 
+        float playerGridHeight =
+                playerInventory.getHeight() *
+                        cellSize +
+                        (
+                                playerInventory.getHeight() -
+                                        1
+                        ) *
+                                cellGap;
+
         float playerY =
                 panelY +
-                        panelHeight *
-                                0.56f;
+                        panelHeight -
+                        playerGridHeight -
+                        70.0f;
 
         drawInventory(
                 playerInventory,
@@ -244,6 +295,11 @@ public class FurnaceRenderer {
          * the font renderer's own OpenGL state safely.
          */
         painter.end();
+
+        textRenderer.begin(
+                framebufferWidth,
+                framebufferHeight
+        );
 
         painter.drawQuantities(
                 furnace.getInputInventory(),
@@ -285,6 +341,51 @@ public class FurnaceRenderer {
                 framebufferHeight
         );
 
+
+
+        String fuelText =
+                furnace.getStoredFuel() +
+                        " / " +
+                        furnace.getMaximumStoredFuel();
+
+        float fuelTextWidth =
+                textRenderer.measureText(
+                        fuelText,
+                        0.8f
+                );
+
+        textRenderer.drawText(
+                fuelText,
+                barX +
+                        barWidth -
+                        fuelTextWidth,
+                fuelBarY -
+                        25.0f,
+                0.8f,
+                framebufferWidth,
+                framebufferHeight
+        );
+
+        textRenderer.drawText(
+                "PROCESSING",
+                barX,
+                processingBarY -
+                        25.0f,
+                0.9f,
+                framebufferWidth,
+                framebufferHeight
+        );
+
+        textRenderer.drawText(
+                "FUEL",
+                barX,
+                fuelBarY -
+                        25.0f,
+                0.9f,
+                framebufferWidth,
+                framebufferHeight
+        );
+
         drawLabels(
                 panelX,
                 panelY,
@@ -300,6 +401,8 @@ public class FurnaceRenderer {
                 framebufferWidth,
                 framebufferHeight
         );
+
+        textRenderer.end();
     }
 
     private void drawInventory(
@@ -324,6 +427,73 @@ public class FurnaceRenderer {
                 cellSize,
                 cellGap
         );
+    }
+
+    private void drawProgressBar(
+            float x,
+            float y,
+            float width,
+            float height,
+            float percentage
+    ) {
+        /*
+         * Outer border.
+         */
+        painter.drawRectangle(
+                x,
+                y,
+                width,
+                height,
+                0.35f,
+                0.37f,
+                0.39f,
+                1.0f
+        );
+
+        float border =
+                3.0f;
+
+        /*
+         * Empty portion.
+         */
+        painter.drawRectangle(
+                x + border,
+                y + border,
+                width - border * 2.0f,
+                height - border * 2.0f,
+                0.08f,
+                0.09f,
+                0.10f,
+                1.0f
+        );
+
+        float innerWidth =
+                width -
+                        border *
+                                2.0f;
+
+        float filledWidth =
+                innerWidth *
+                        Math.max(
+                                0.0f,
+                                Math.min(
+                                        1.0f,
+                                        percentage
+                                )
+                        );
+
+        if (filledWidth > 0.0f) {
+            painter.drawRectangle(
+                    x + border,
+                    y + border,
+                    filledWidth,
+                    height - border * 2.0f,
+                    0.85f,
+                    0.85f,
+                    0.85f,
+                    1.0f
+            );
+        }
     }
 
     private void drawSelection(
@@ -491,7 +661,7 @@ public class FurnaceRenderer {
         );
 
         String controls =
-                "ENTER: TRANSFER   ESC: CLOSE";
+                "ENTER: ONE   F: STACK   ESC: CLOSE";
 
         float controlsScale =
                 0.8f;

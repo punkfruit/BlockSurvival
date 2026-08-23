@@ -153,15 +153,13 @@ public class FurnaceScreen {
                 0;
     }
 
-    public void transferSelected(
-            Inventory playerInventory
+    private void transferSelected(
+            Inventory playerInventory,
+            boolean entireStack
     ) {
         if (!isOpen()) {
             return;
         }
-
-        Inventory selectedInventory =
-                getSelectedInventory();
 
         ItemStack stack =
                 getSelectedStack(
@@ -172,31 +170,61 @@ public class FurnaceScreen {
             return;
         }
 
-        boolean transferred;
+        int requestedQuantity =
+                entireStack
+                        ? stack.getQuantity()
+                        : 1;
+
+        int transferred;
 
         if (selectedSection == 0) {
             transferred =
                     furnace.transferFromPlayer(
                             playerInventory,
-                            stack
+                            stack,
+                            requestedQuantity
                     );
         }
         else {
+            Inventory selectedInventory =
+                    getSelectedInventory();
+
             transferred =
                     furnace.transferToPlayer(
                             selectedInventory,
                             playerInventory,
-                            stack
+                            stack,
+                            requestedQuantity
                     );
         }
 
-        if (transferred) {
+        if (transferred > 0) {
             System.out.println(
-                    "Transferred one " +
+                    "Transferred " +
+                            transferred +
+                            " " +
                             stack.getDefinition()
                                     .displayName()
             );
         }
+    }
+
+    public void transferOneSelected(
+            Inventory playerInventory
+    ) {
+        transferSelected(
+                playerInventory,
+                false
+        );
+    }
+
+    public void transferStackSelected(
+            Inventory playerInventory
+    ) {
+        transferSelected(
+                playerInventory,
+                true
+        );
     }
 
     public Inventory getSelectedInventory() {

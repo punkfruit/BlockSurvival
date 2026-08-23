@@ -38,7 +38,7 @@ public class ItemEntity
             1.25f;
 
     private static final float PICKUP_DELAY_SECONDS =
-            3f;//0.40f default
+            0.40f;//0.40f default
 
     private static final float DESPAWN_SECONDS =
             300.0f;

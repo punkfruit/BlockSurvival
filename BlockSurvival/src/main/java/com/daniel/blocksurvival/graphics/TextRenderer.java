@@ -51,6 +51,16 @@ public class TextRenderer {
     private final int vertexBufferId;
     private final int elementBufferId;
 
+    private boolean batchActive =
+            false;
+
+
+    private final java.util.List<Float> batchVertices =
+            new java.util.ArrayList<>();
+
+    private final java.util.List<Integer> batchIndices =
+            new java.util.ArrayList<>();
+
     private final Map<Character, Glyph>
             glyphs =
             new HashMap<>();
@@ -425,6 +435,20 @@ public class TextRenderer {
                 GL_ONE_MINUS_SRC_ALPHA
         );
 
+        if (batchActive) {
+           
+
+            drawTextInternal(
+                    text,
+                    x,
+                    y,
+                    scale,
+                    color
+            );
+
+            return;
+        }
+
         shader.bind();
 
         Matrix4f projectionMatrix =
@@ -582,6 +606,78 @@ public class TextRenderer {
         float bottom =
                 y +
                         height;
+
+        if (batchActive) {
+            int firstVertexIndex =
+                    batchVertices.size() /
+                            4;
+
+            /*
+             * Vertex 0.
+             */
+            addBatchVertex(
+                    x,
+                    y,
+                    glyph.minimumU(),
+                    glyph.minimumV()
+            );
+
+            /*
+             * Vertex 1.
+             */
+            addBatchVertex(
+                    x,
+                    bottom,
+                    glyph.minimumU(),
+                    glyph.maximumV()
+            );
+
+            /*
+             * Vertex 2.
+             */
+            addBatchVertex(
+                    right,
+                    bottom,
+                    glyph.maximumU(),
+                    glyph.maximumV()
+            );
+
+            /*
+             * Vertex 3.
+             */
+            addBatchVertex(
+                    right,
+                    y,
+                    glyph.maximumU(),
+                    glyph.minimumV()
+            );
+
+            batchIndices.add(
+                    firstVertexIndex
+            );
+
+            batchIndices.add(
+                    firstVertexIndex + 1
+            );
+
+            batchIndices.add(
+                    firstVertexIndex + 2
+            );
+
+            batchIndices.add(
+                    firstVertexIndex + 2
+            );
+
+            batchIndices.add(
+                    firstVertexIndex + 3
+            );
+
+            batchIndices.add(
+                    firstVertexIndex
+            );
+
+            return;
+        }
 
         float[] vertices = {
                 /*
@@ -751,6 +847,29 @@ public class TextRenderer {
         );
     }
 
+    private void addBatchVertex(
+            float x,
+            float y,
+            float u,
+            float v
+    ) {
+        batchVertices.add(
+                x
+        );
+
+        batchVertices.add(
+                y
+        );
+
+        batchVertices.add(
+                u
+        );
+
+        batchVertices.add(
+                v
+        );
+    }
+
     public void destroy() {
         shader.destroy();
 
@@ -773,5 +892,159 @@ public class TextRenderer {
             float maximumU,
             float maximumV
     ) {
+    }
+
+    public void begin(
+            int screenWidth,
+            int screenHeight
+    ) {
+        if (batchActive) {
+            return;
+        }
+
+        batchActive =
+                true;
+
+        batchVertices.clear();
+        batchIndices.clear();
+
+        glDisable(
+                GL_DEPTH_TEST
+        );
+
+        glEnable(
+                GL_BLEND
+        );
+
+        glBlendFunc(
+                GL_SRC_ALPHA,
+                GL_ONE_MINUS_SRC_ALPHA
+        );
+
+        shader.bind();
+
+        Matrix4f projectionMatrix =
+                new Matrix4f()
+                        .ortho2D(
+                                0.0f,
+                                screenWidth,
+                                screenHeight,
+                                0.0f
+                        );
+
+        shader.setMatrix4(
+                "projectionMatrix",
+                projectionMatrix
+        );
+
+        glActiveTexture(
+                GL_TEXTURE0
+        );
+
+        fontTexture.bind();
+    }
+
+    public void end() {
+        if (!batchActive) {
+            return;
+        }
+
+        flushBatch();
+
+        fontTexture.unbind();
+
+        shader.unbind();
+
+        glDisable(
+                GL_BLEND
+        );
+
+        glEnable(
+                GL_DEPTH_TEST
+        );
+
+        batchActive =
+                false;
+    }
+
+    private void flushBatch() {
+        if (
+                batchVertices.isEmpty() ||
+                        batchIndices.isEmpty()
+        ) {
+            return;
+        }
+
+        float[] vertices =
+                new float[
+                        batchVertices.size()
+                        ];
+
+        for (
+                int index = 0;
+                index < batchVertices.size();
+                index++
+        ) {
+            vertices[index] =
+                    batchVertices.get(
+                            index
+                    );
+        }
+
+        int[] indices =
+                new int[
+                        batchIndices.size()
+                        ];
+
+        for (
+                int index = 0;
+                index < batchIndices.size();
+                index++
+        ) {
+            indices[index] =
+                    batchIndices.get(
+                            index
+                    );
+        }
+
+        glBindVertexArray(
+                vertexArrayId
+        );
+
+        glBindBuffer(
+                GL_ARRAY_BUFFER,
+                vertexBufferId
+        );
+
+        /*
+         * Resize/upload the complete batch at once.
+         */
+        glBufferData(
+                GL_ARRAY_BUFFER,
+                vertices,
+                GL_DYNAMIC_DRAW
+        );
+
+        glBindBuffer(
+                GL_ELEMENT_ARRAY_BUFFER,
+                elementBufferId
+        );
+
+        glBufferData(
+                GL_ELEMENT_ARRAY_BUFFER,
+                indices,
+                GL_DYNAMIC_DRAW
+        );
+
+        glDrawElements(
+                GL_TRIANGLES,
+                indices.length,
+                GL_UNSIGNED_INT,
+                0
+        );
+
+        glBindVertexArray(
+                0
+        );
     }
 }
